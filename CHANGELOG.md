@@ -2,6 +2,16 @@
 
 All notable TypeOpen changes are recorded here.
 
+## 0.1.2 — 2026-10-10
+
+Release-hardening and native UX parity.
+
+- Restored normal macOS window dragging for the WKWebView titlebar and persisted the main window frame between launches.
+- Added a standard macOS Window menu and resolved shortcut conflicts so Paragraph/Format commands match the reference workflow without colliding with TypeOpen zoom controls.
+- Added current-section highlighting to the document outline while scrolling.
+- Added TypeOpen-owned rich-mode HTML comment nodes so inline and block `<!-- ... -->` comments round-trip losslessly instead of forcing Source mode.
+- Added a staged TriHerm Homebrew Cask/tap layout plus a deterministic cask version/checksum sync script.
+
 ## 0.1.1 — 2026-10-09
 
 Lightweight native macOS release.

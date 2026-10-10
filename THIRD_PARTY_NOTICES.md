@@ -7,7 +7,7 @@ TypeOpen depends on open-source software. The package lock is the authoritative 
 | Electron | legacy development/fallback desktop shell | MIT |
 | React / React DOM | renderer UI | MIT |
 | @mdxeditor/editor | Markdown WYSIWYG editor framework | MIT |
-| Lexical / @lexical/list | editor engine and list primitives | MIT |
+| Lexical / @lexical/list / @lexical/rich-text | editor engine and rich/list primitives | MIT |
 | KaTeX | math rendering | MIT |
 | Mermaid | diagrams | MIT |
 | flowchart.js | legacy flowchart diagrams | MIT |
@@ -15,6 +15,8 @@ TypeOpen depends on open-source software. The package lock is the authoritative 
 | DOMPurify | export sanitization | MPL-2.0 OR Apache-2.0 |
 | mdast-util-gfm-footnote | GFM footnote Markdown AST parsing/serialization | MIT |
 | mdast-util-math | math Markdown AST extension | MIT |
+| mdast-util-from-markdown | Markdown AST parsing used for lossless rich-mode comment boundaries | MIT |
+| mdast-util-mdx-jsx | MDX/HTML AST element types used by rich-mode comment bridging | MIT |
 | micromark-extension-gfm-footnote | GFM footnote Markdown syntax | MIT |
 | micromark-extension-math | math Markdown syntax | MIT |
 | lucide-react | UI icons | ISC |

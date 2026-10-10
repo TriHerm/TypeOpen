@@ -41,6 +41,8 @@ import { $isListItemNode } from '@lexical/list'
 import { $createHeadingNode, type HeadingTagType } from '@lexical/rich-text'
 import { $getSelection, $isRangeSelection, FORMAT_TEXT_COMMAND, INDENT_CONTENT_COMMAND, OUTDENT_CONTENT_COMMAND, SET_TEXT_FORMAT_COMMAND, type LexicalNode, type TextFormatType } from 'lexical'
 import { DiagramCodeBlockEditor } from './DiagramCodeBlockEditor'
+import { createHtmlCommentToken, decodeHtmlCommentsFromRichEditor, encodeHtmlCommentsForRichEditor } from './commentEncoding'
+import { typeOpenCommentPlugin } from './commentPlugin'
 import { typeOpenFootnotePlugin } from './footnotePlugin'
 import { typeOpenMathPlugin } from './mathPlugin'
 import { typeOpenTocPlugin } from './tocPlugin'
@@ -85,6 +87,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 }, forwardedRef) {
   const editorRef = useRef<MDXEditorMethods>(null)
   const realmRef = useRef<EditorRealm | null>(null)
+  const commentToken = useRef(createHtmlCommentToken()).current
   const commandBridgePlugin = useMemo<RealmPlugin>(() => ({
     postInit(realm) { realmRef.current = realm },
     update(realm) { realmRef.current = realm }
@@ -99,6 +102,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     imagePlugin({ imageUploadHandler: imageUpload, imagePreviewHandler: imagePreview }),
     tablePlugin(),
     frontmatterPlugin(),
+    typeOpenCommentPlugin(commentToken),
     typeOpenFootnotePlugin(),
     typeOpenMathPlugin(),
     typeOpenTocPlugin(),
@@ -140,7 +144,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         </DiffSourceToggleWrapper>
       )
     })] : [])
-  ], [commandBridgePlugin, imagePreview, imageUpload, sourceMode, toolbarVisible])
+  ], [commandBridgePlugin, commentToken, imagePreview, imageUpload, sourceMode, toolbarVisible])
 
   const getMutableRichEditor = () => {
     const realm = realmRef.current
@@ -150,10 +154,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }
 
   useImperativeHandle(forwardedRef, () => ({
-    getMarkdown: () => editorRef.current?.getMarkdown() ?? markdown,
-    setMarkdown: (value) => editorRef.current?.setMarkdown(value),
-    insertMarkdown: (value) => editorRef.current?.insertMarkdown(value),
-    getSelectionMarkdown: () => editorRef.current?.getSelectionMarkdown() ?? '',
+    getMarkdown: () => sourceMode ? (editorRef.current?.getMarkdown() ?? markdown) : decodeHtmlCommentsFromRichEditor(editorRef.current?.getMarkdown() ?? markdown, commentToken),
+    setMarkdown: (value) => editorRef.current?.setMarkdown(sourceMode ? value : encodeHtmlCommentsForRichEditor(value, commentToken)),
+    insertMarkdown: (value) => editorRef.current?.insertMarkdown(sourceMode ? value : encodeHtmlCommentsForRichEditor(value, commentToken)),
+    getSelectionMarkdown: () => sourceMode ? (editorRef.current?.getSelectionMarkdown() ?? '') : decodeHtmlCommentsFromRichEditor(editorRef.current?.getSelectionMarkdown() ?? '', commentToken),
     getContentEditableHTML: () => editorRef.current?.getContentEditableHTML() ?? '',
     clearFormat: () => {
       const context = getMutableRichEditor()
@@ -233,17 +237,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       return applied
     },
     focus: () => editorRef.current?.focus()
-  }), [markdown])
+  }), [markdown, sourceMode])
 
   return (
     <MDXEditor
       ref={editorRef}
-      markdown={markdown}
+      markdown={sourceMode ? markdown : encodeHtmlCommentsForRichEditor(markdown, commentToken)}
       trim={false}
-      onChange={(value, normalized) => { if (!normalized) onChange(value) }}
+      onChange={(value, normalized) => { if (!normalized) onChange(sourceMode ? value : decodeHtmlCommentsFromRichEditor(value, commentToken)) }}
       onError={(payload) => console.warn('Markdown parse error', payload.error)}
       readOnly={readOnly}
       spellCheck={spellCheck}
+      suppressHtmlProcessing={sourceMode}
       className="typeopen-mdx-root"
       contentEditableClassName="typeopen-editor-content"
       plugins={plugins}

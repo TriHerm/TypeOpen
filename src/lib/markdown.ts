@@ -98,29 +98,6 @@ export function documentTitle(markdown: string, fallback = 'Untitled'): string {
   return firstHeading?.text || fallback
 }
 
-export function containsHtmlCommentOutsideFences(markdown: string): boolean {
-  const lines = markdown.split(/\r?\n/)
-  let inFence = false
-  let fenceChar = ''
-
-  for (const line of lines) {
-    const fence = /^\s*(```+|~~~+)/.exec(line)
-    if (fence) {
-      const char = fence[1][0]
-      if (!inFence) {
-        inFence = true
-        fenceChar = char
-      } else if (char === fenceChar) {
-        inFence = false
-        fenceChar = ''
-      }
-      continue
-    }
-    if (!inFence && line.includes('<!--')) return true
-  }
-  return false
-}
-
 function escapeAttribute(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

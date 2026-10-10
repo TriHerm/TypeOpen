@@ -14,7 +14,7 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Open folder / file tree | static sidebar/file-library resources | Implemented | Recursive Markdown/text tree and article list |
 | Recent/reopen/quick file workflows | static File menu resources | Implemented | Native recent documents, renderer closed-file history, and filename-only quick open over the current folder |
 | Duplicate / Rename / Move To | static File menu resources | Implemented | Saved local documents only; tab paths update after filesystem operations and TextBundle packages move/copy as complete directories |
-| Outline | static Outline resources | Implemented | H1-H6 extraction and navigation |
+| Outline | static Outline resources | Implemented | H1-H6 extraction/navigation plus current-section highlighting while the editor scrolls |
 | Source Code Mode | static View command | Implemented | CodeMirror-backed source view via MDXEditor |
 | Read-only Mode | static View command | Implemented | Toggle in UI/menu command |
 | Focus Mode | static View command/preferences | Implemented | Dims non-current top-level editor blocks |
@@ -39,7 +39,7 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Strong/emphasis/underline/code/strike | static Format menu | Implemented | Toolbar/menu commands |
 | Clear Format | static Format menu | Implemented | Clears Lexical inline text formats on the active rich-text selection |
 | Highlight / superscript / subscript | static Format menu | Implemented | Uses Lexical text-format commands; MDXEditor has native import/export visitors for highlight plus `<sup>`/`<sub>`, so these formats render and round-trip in rich mode |
-| Comment | static Format menu | Partial | HTML comments are source-mode-only. TypeOpen detects comments outside fenced code and keeps that document in Source mode so rich serialization cannot silently discard them; no specialized rich inline comment model is claimed |
+| Comment | static Format menu | Implemented | TypeOpen-owned Lexical comment nodes preserve inline and block `<!-- ... -->` source losslessly in rich mode, remain literal in Source mode, and are omitted from exported visible DOM |
 | Copy as Markdown / HTML | static Edit menu | Implemented | Selection/document Markdown and editor HTML copied to clipboard |
 | Paste as plain text | static Edit menu | Implemented | Clipboard text insertion |
 | PDF export | static export resources | Implemented | Native AppKit `NSPrintOperation` over system WKWebView using the TypeOpen export stylesheet |
@@ -51,6 +51,7 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Spellcheck | static edit/preferences | Implemented | System WebKit/macOS text services and contextual suggestions |
 | Autosave | exact reference recovery semantics unknown | Implemented | Optional debounced save for an existing file |
 | Tabs / multi-document model | static New Tab / document switching | Implemented | Renderer-owned tabs preserve per-document dirty state, Save All, close prompts and next/previous switching |
+| Native window behavior | shipped macOS window/menu surfaces | Implemented | AppKit traffic lights/full-size titlebar, draggable inert titlebar region, persisted frame size/position, standard Window menu, fullscreen/minimize/zoom and dirty-close lifecycle |
 | Custom themes | static theme preferences | Implemented | Built-in light/dark/system remain available; users can explicitly choose a local CSS file that is size-limited and rejected if it contains external-resource/executable CSS constructs. Reference themes/assets are intentionally not copied |
 | Page Setup | static File menu | Implemented | TypeOpen-owned dialog configures paper size, portrait/landscape orientation, and margins; settings map to `NSPrintInfo` for native PDF export and printing |
 | Pixel-identical native UI | runtime capture blocked | Reference unknown | REA live native UI observation was denied Screen Recording and Accessibility permissions; TypeOpen uses an original UI |

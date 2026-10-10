@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { containsHtmlCommentOutsideFences, createExportHtml, documentTitle, extractOutline, findMatches, getDocumentStats, replaceAllLiteral, slugifyHeading } from '../src/lib/markdown'
+import { createExportHtml, documentTitle, extractOutline, findMatches, getDocumentStats, replaceAllLiteral, slugifyHeading } from '../src/lib/markdown'
 
 describe('markdown document helpers', () => {
   it('extracts headings while ignoring fenced code', () => {
@@ -35,12 +35,6 @@ describe('markdown document helpers', () => {
   it('replaces literal text rather than interpreting regex syntax', () => {
     expect(replaceAllLiteral('a.b aXb a.b', 'a.b', 'x')).toEqual({ value: 'x aXb x', count: 2 })
     expect(replaceAllLiteral('A a', 'a', 'z', true)).toEqual({ value: 'A z', count: 1 })
-  })
-
-  it('detects HTML comments that rich mode must not normalize away', () => {
-    expect(containsHtmlCommentOutsideFences('Before <!-- keep --> after')).toBe(true)
-    expect(containsHtmlCommentOutsideFences('```html\n<!-- example only -->\n```')).toBe(false)
-    expect(containsHtmlCommentOutsideFences('~~~html\n<!-- example only -->\n~~~\n\n<!-- keep -->')).toBe(true)
   })
 
   it('exports self-contained MathML without relying on KaTeX CSS', async () => {

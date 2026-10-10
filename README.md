@@ -16,7 +16,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Source Code Mode backed by CodeMirror.
 - Headings, lists, task lists with Task Status toggling, block quotes, tables, links, images, YAML front matter and fenced code.
 - Live `[TOC]` blocks and canonical paired GFM footnotes in rich and source editing workflows.
-- Rich highlight, superscript and subscript formatting; HTML comments are kept source-only so rich serialization cannot silently discard them.
+- Rich highlight, superscript and subscript formatting plus lossless inline/block HTML comments.
 - Inline and block TeX math rendered with KaTeX.
 - Mermaid, sequence and legacy flowchart previews inside fenced code blocks.
 - Folder file tree, article list and document outline.
@@ -75,7 +75,7 @@ npm run pack
 
 The native application is written to `release/native-arm64/TypeOpen.app`; the compressed image is `release/TypeOpen-<version>-arm64.dmg`. The shell links only system AppKit/WebKit frameworks and reuses the compiled Vite renderer, so it does not package Chromium, Node.js, Electron Framework, or an ASAR. Local builds use ad-hoc signing so bundle integrity can be verified without private credentials. A public Gatekeeper-friendly distribution still requires an Apple Developer ID Application certificate plus Apple notarization credentials.
 
-The verified `0.1.1` Apple Silicon build is about **10.3 MiB installed** and **4.3 MB as a DMG**, down from the Electron-based `0.1.0` package that was roughly 194 MB as a DMG.
+The verified `0.1.2` Apple Silicon release is about **10.3 MiB installed** and **5.2 MB as a DMG**, down from the Electron-based `0.1.0` package that was roughly 194 MB as a DMG.
 
 The retained Electron fallback can still be packaged explicitly with `npm run pack:electron`, `npm run dmg:electron`, or `npm run dmg:electron:universal`. Those commands are migration aids rather than the default distribution path.
 
@@ -88,6 +88,16 @@ npm run verify:dist
 ```
 
 `verify` checks the clean-room tracked-file boundary, native Swift typechecking, the retained Electron/CommonJS fallback syntax, TypeScript, tests, renderer build and dependency audit. `verify:dist` verifies the native ad-hoc app signature, Apple Silicon architecture, bundle identifier, DMG checksum/mount, mounted app, required renderer/bridge resources, and absence of Electron packaging or local reference/evidence material from the native bundle. See [`docs/RELEASING.md`](docs/RELEASING.md) for the full release procedure. For a public Developer ID release, additionally run Apple's `codesign`, `spctl`, `notarytool` and `stapler` verification steps.
+
+## Homebrew
+
+TypeOpen is also distributed through the TriHerm Homebrew tap. The public install command is:
+
+```bash
+brew install --cask triherm/tap/typeopen
+```
+
+The matching Cask source is maintained under [`packaging/homebrew-tap`](packaging/homebrew-tap/README.md) and published to `TriHerm/homebrew-tap`. Until TypeOpen is Developer ID signed and notarized, the custom tap intentionally keeps macOS quarantine enabled and documents the normal **Privacy & Security → Open Anyway** flow rather than bypassing Gatekeeper.
 
 ## Architecture
 
