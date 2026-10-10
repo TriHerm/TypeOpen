@@ -34,13 +34,27 @@ This project is an independent clean-room implementation. It does not contain Ty
 
 See [`docs/PARITY_MATRIX.md`](docs/PARITY_MATRIX.md) for the exact feature/evidence status and known gaps.
 
+## Install with Homebrew
+
+Homebrew is the recommended installation path for TypeOpen on Apple Silicon Macs:
+
+```bash
+brew install --cask triherm/tap/typeopen
+```
+
+The Cask is maintained in the public [`TriHerm/homebrew-tap`](https://github.com/TriHerm/homebrew-tap) repository and tracks the matching immutable GitHub release artifact.
+
+TypeOpen is currently ad-hoc signed and not notarized. Homebrew keeps macOS quarantine enabled, so Gatekeeper may block the first launch. If you trust the release, open TypeOpen once and approve it through **System Settings → Privacy & Security → Open Anyway**.
+
+You can also download the current Apple Silicon DMG directly from [GitHub Releases](https://github.com/TriHerm/TypeOpen/releases/latest).
+
 ## Requirements
 
-- macOS 13 or newer for the native AppKit/WebKit shell.
-- Node.js 22.12+ (Node 26 is used for the current development build).
-- npm 11+.
-- Xcode Command Line Tools with `swiftc` for native desktop builds.
+- macOS 13 or newer.
+- Apple Silicon (`arm64`) for the current public release.
 - Optional: Pandoc 2+ for advanced import/export formats.
+
+For development from source, use Node.js 22.12+, npm 11+, and Xcode Command Line Tools with `swiftc`.
 
 ## Development
 
@@ -88,16 +102,6 @@ npm run verify:dist
 ```
 
 `verify` checks the clean-room tracked-file boundary, native Swift typechecking, the retained Electron/CommonJS fallback syntax, TypeScript, tests, renderer build and dependency audit. `verify:dist` verifies the native ad-hoc app signature, Apple Silicon architecture, bundle identifier, DMG checksum/mount, mounted app, required renderer/bridge resources, and absence of Electron packaging or local reference/evidence material from the native bundle. See [`docs/RELEASING.md`](docs/RELEASING.md) for the full release procedure. For a public Developer ID release, additionally run Apple's `codesign`, `spctl`, `notarytool` and `stapler` verification steps.
-
-## Homebrew
-
-TypeOpen is also distributed through the TriHerm Homebrew tap. The public install command is:
-
-```bash
-brew install --cask triherm/tap/typeopen
-```
-
-The matching Cask source is maintained under [`packaging/homebrew-tap`](packaging/homebrew-tap/README.md) and published to `TriHerm/homebrew-tap`. Until TypeOpen is Developer ID signed and notarized, the custom tap intentionally keeps macOS quarantine enabled and documents the normal **Privacy & Security → Open Anyway** flow rather than bypassing Gatekeeper.
 
 ## Architecture
 
