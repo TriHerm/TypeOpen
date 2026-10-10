@@ -1,6 +1,28 @@
 import AppKit
 import WebKit
 
+private final class TypeOpenWindow: NSWindow {
+    // Mirrors the renderer's 42 pt titlebar row. The leading 240 pt contain
+    // the native traffic lights plus TypeOpen's WebKit toolbar buttons, so
+    // leave that area to normal hit testing and only drag the inert portion.
+    private let rendererTitlebarHeight: CGFloat = 42
+    private let interactiveLeadingWidth: CGFloat = 240
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown,
+           event.clickCount == 1,
+           let contentView {
+            let point = contentView.convert(event.locationInWindow, from: nil)
+            let isRendererTitlebar = point.y >= contentView.bounds.maxY - rendererTitlebarHeight
+            if isRendererTitlebar && point.x >= interactiveLeadingWidth {
+                performDrag(with: event)
+                return
+            }
+        }
+        super.sendEvent(event)
+    }
+}
+
 @main
 @MainActor
 struct TypeOpenMain {
@@ -43,7 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         webView.autoresizingMask = [.width, .height]
         webView.allowsMagnification = true
 
-        window = NSWindow(
+        window = TypeOpenWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1180, height: 820),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
@@ -51,6 +73,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         )
         window.minSize = NSSize(width: 720, height: 520)
         window.center()
+        window.setFrameAutosaveName("TypeOpenMainWindow")
+        window.tabbingMode = .disallowed
         window.title = "TypeOpen"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
@@ -288,7 +312,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         editMenu.addItem(commandItem("Find…", key: "f", command: "find"))
         editMenu.addItem(commandItem("Find Next", key: "g", command: "find-next"))
         editMenu.addItem(commandItem("Find Previous", key: "g", modifiers: [.command, .shift], command: "find-previous"))
-        editMenu.addItem(commandItem("Replace…", key: "f", modifiers: [.command, .option], command: "replace"))
+        editMenu.addItem(commandItem("Replace…", key: "h", command: "replace"))
         editMenu.addItem(commandItem("Replace Next", command: "replace-next"))
         editMenu.addItem(.separator())
         editMenu.addItem(commandItem("Search in Folder…", key: "f", modifiers: [.command, .shift], command: "search-folder"))
@@ -297,20 +321,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let paragraphMenu = NSMenu(title: "Paragraph")
         paragraphMenu.addItem(commandItem("Paragraph", key: "0", command: "insert", payload: "paragraph"))
         for level in 1...6 { paragraphMenu.addItem(commandItem("Heading \(level)", key: "\(level)", command: "insert", payload: "h\(level)")) }
-        paragraphMenu.addItem(commandItem("Increase Heading Level", command: "heading-level", payload: "increase"))
-        paragraphMenu.addItem(commandItem("Decrease Heading Level", command: "heading-level", payload: "decrease"))
+        paragraphMenu.addItem(commandItem("Increase Heading Level", key: "=", command: "heading-level", payload: "increase"))
+        paragraphMenu.addItem(commandItem("Decrease Heading Level", key: "-", command: "heading-level", payload: "decrease"))
         paragraphMenu.addItem(.separator())
-        paragraphMenu.addItem(commandItem("Block Quote", key: "q", modifiers: [.command, .shift], command: "insert", payload: "quote"))
-        paragraphMenu.addItem(commandItem("Code Fence", key: "k", modifiers: [.command, .shift], command: "insert", payload: "code-fence"))
-        paragraphMenu.addItem(commandItem("Math Block", command: "insert", payload: "math-block"))
-        paragraphMenu.addItem(commandItem("Table…", command: "insert", payload: "table"))
+        paragraphMenu.addItem(commandItem("Block Quote", key: "q", modifiers: [.command, .option], command: "insert", payload: "quote"))
+        paragraphMenu.addItem(commandItem("Code Fence", key: "c", modifiers: [.command, .option], command: "insert", payload: "code-fence"))
+        paragraphMenu.addItem(commandItem("Math Block", key: "b", modifiers: [.command, .option], command: "insert", payload: "math-block"))
+        paragraphMenu.addItem(commandItem("Table…", key: "t", modifiers: [.command, .option], command: "insert", payload: "table"))
         paragraphMenu.addItem(.separator())
-        paragraphMenu.addItem(commandItem("Ordered List", command: "insert", payload: "ordered-list"))
-        paragraphMenu.addItem(commandItem("Unordered List", command: "insert", payload: "unordered-list"))
+        paragraphMenu.addItem(commandItem("Ordered List", key: "o", modifiers: [.command, .option], command: "insert", payload: "ordered-list"))
+        paragraphMenu.addItem(commandItem("Unordered List", key: "u", modifiers: [.command, .option], command: "insert", payload: "unordered-list"))
         paragraphMenu.addItem(commandItem("Task List", command: "insert", payload: "task-list"))
         paragraphMenu.addItem(commandItem("Task Status", command: "task-status"))
-        paragraphMenu.addItem(commandItem("Indent", command: "indent"))
-        paragraphMenu.addItem(commandItem("Outdent", command: "outdent"))
+        paragraphMenu.addItem(commandItem("Indent", key: "[", command: "indent"))
+        paragraphMenu.addItem(commandItem("Outdent", key: "]", command: "outdent"))
         paragraphMenu.addItem(commandItem("Footnote", command: "insert", payload: "footnote"))
         paragraphMenu.addItem(commandItem("Table of Contents", command: "insert", payload: "toc"))
         paragraphMenu.addItem(commandItem("YAML Front Matter", command: "insert", payload: "frontmatter"))
@@ -329,10 +353,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         formatMenu.addItem(commandItem("Inline Math", command: "insert", payload: "inline-math"))
         formatMenu.addItem(.separator())
         formatMenu.addItem(commandItem("Link…", key: "k", command: "insert", payload: "link"))
-        formatMenu.addItem(commandItem("Image…", command: "insert", payload: "image"))
+        formatMenu.addItem(commandItem("Image…", key: "i", modifiers: [.command, .control], command: "insert", payload: "image"))
         formatMenu.addItem(commandItem("Horizontal Rule", command: "insert", payload: "hr"))
         formatMenu.addItem(.separator())
-        formatMenu.addItem(commandItem("Clear Format", command: "clear-format"))
+        formatMenu.addItem(commandItem("Clear Format", key: "\\", command: "clear-format"))
         main.addItem(menuRoot("Format", submenu: formatMenu))
 
         let viewMenu = NSMenu(title: "View")
@@ -353,11 +377,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         viewMenu.addItem(commandItem("Show Editor Toolbar", command: "toggle-toolbar"))
         viewMenu.addItem(nativeItem("Always on Top", action: #selector(toggleAlwaysOnTop(_:))))
         viewMenu.addItem(.separator())
-        viewMenu.addItem(responderItem("Enter Full Screen", key: "f", modifiers: [.command, .control], selector: #selector(NSWindow.toggleFullScreen(_:))))
-        viewMenu.addItem(nativeItem("Actual Size", key: "0", action: #selector(resetZoom(_:))))
-        viewMenu.addItem(nativeItem("Zoom In", key: "+", action: #selector(zoomIn(_:))))
-        viewMenu.addItem(nativeItem("Zoom Out", key: "-", action: #selector(zoomOut(_:))))
+        viewMenu.addItem(responderItem("Enter Full Screen", key: "f", modifiers: [.command, .option], selector: #selector(NSWindow.toggleFullScreen(_:))))
+        viewMenu.addItem(nativeItem("Actual Size", key: "0", modifiers: [.command, .option], action: #selector(resetZoom(_:))))
+        viewMenu.addItem(nativeItem("Zoom In", key: "=", modifiers: [.command, .option], action: #selector(zoomIn(_:))))
+        viewMenu.addItem(nativeItem("Zoom Out", key: "-", modifiers: [.command, .option], action: #selector(zoomOut(_:))))
         main.addItem(menuRoot("View", submenu: viewMenu))
+
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(responderItem("Minimize", key: "m", selector: #selector(NSWindow.performMiniaturize(_:))))
+        windowMenu.addItem(responderItem("Zoom", selector: #selector(NSWindow.performZoom(_:))))
+        windowMenu.addItem(.separator())
+        windowMenu.addItem(nativeItem("Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), target: NSApp))
+        NSApp.windowsMenu = windowMenu
+        main.addItem(menuRoot("Window", submenu: windowMenu))
 
         let helpMenu = NSMenu(title: "Help")
         helpMenu.addItem(commandItem("TypeOpen Documentation", command: "documentation"))
@@ -408,7 +440,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         return item
     }
 
-    private func responderItem(_ title: String, key: String, modifiers: NSEvent.ModifierFlags = [.command], selector: Selector) -> NSMenuItem {
+    private func responderItem(_ title: String, key: String = "", modifiers: NSEvent.ModifierFlags = [.command], selector: Selector) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: selector, keyEquivalent: key)
         item.target = nil
         item.keyEquivalentModifierMask = modifiers

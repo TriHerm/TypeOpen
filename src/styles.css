@@ -90,6 +90,7 @@ button { -webkit-app-region: no-drag; }
 .outline-row.level-2 { padding-left: 13px; }
 .outline-row.level-3 { padding-left: 23px; color: var(--muted); }
 .outline-row.level-4, .outline-row.level-5, .outline-row.level-6 { padding-left: 32px; color: var(--muted); font-size: 11.5px; }
+.outline-row.active { background: var(--accent-soft); color: var(--accent); }
 
 .document-workspace { flex: 1; min-width: 0; min-height: 0; position: relative; display: flex; flex-direction: column; background: var(--bg); }
 .editor-scroll-area { flex: 1; min-height: 0; overflow: auto; position: relative; scroll-behavior: smooth; }
@@ -122,6 +123,9 @@ button { -webkit-app-region: no-drag; }
 .typeopen-footnote-definition::before { content: '[^' attr(data-footnote-label) ']:'; position: absolute; left: 0; top: 0; color: var(--muted); font-size: .9em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .typeopen-footnote-definition > p:first-child { margin-top: 0; }
 .typeopen-footnote-definition > p:last-child { margin-bottom: 0; }
+.typeopen-html-comment { color: var(--muted); background: color-mix(in srgb, var(--surface-2) 72%, transparent); border: 1px dashed var(--border); border-radius: 4px; font: .82em/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; opacity: .78; }
+.typeopen-html-comment.inline { display: inline; padding: .08em .3em; margin: 0 .12em; }
+.typeopen-html-comment.block { display: block; padding: .42em .6em; margin: .8em 0; white-space: pre-wrap; }
 .empty-hint { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); color: color-mix(in srgb, var(--muted) 60%, transparent); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; font-size: 13px; z-index: 0; }
 
 .typeopen-math-node { cursor: text; }

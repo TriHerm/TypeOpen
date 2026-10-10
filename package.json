@@ -1,6 +1,6 @@
 {
   "name": "typeopen",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Open-source Markdown editor for macOS with a focused live editing experience.",
   "main": "electron/main.cjs",
   "scripts": {
@@ -24,6 +24,7 @@
     "native:run": "npm run native:build && open release/native-arm64/TypeOpen.app",
     "native:dmg": "npm run clean:release && npm run native:build && node scripts/create-native-dmg.mjs",
     "native:verify": "node scripts/verify-native-dist.mjs",
+    "homebrew:sync": "node scripts/update-homebrew-cask.mjs",
     "pack": "npm run clean:release && npm run native:build",
     "dmg": "npm run native:dmg",
     "verify:dist": "npm run native:verify",
@@ -66,8 +67,10 @@
     "lexical": "^0.48.0",
     "lucide-react": "^1.54.0",
     "marked": "^18.1.0",
+    "mdast-util-from-markdown": "^2.1.0",
     "mdast-util-gfm-footnote": "^2.1.0",
     "mdast-util-math": "^3.0.0",
+    "mdast-util-mdx-jsx": "^3.2.0",
     "mermaid": "^12.1.0",
     "micromark-extension-gfm-footnote": "^2.1.0",
     "micromark-extension-math": "^3.1.0",

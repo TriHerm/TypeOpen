@@ -9,6 +9,7 @@ interface SidebarProps {
   tab: SidebarTab
   onTabChange: (tab: SidebarTab) => void
   outline: OutlineItem[]
+  activeOutlineSlug: string | null
   fileTree: TypeOpenTreeNode[]
   currentFilePath: string | null
   revealFilePath: string | null
@@ -57,7 +58,7 @@ function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, onOpen
   )
 }
 
-export function Sidebar({ visible, tab, onTabChange, outline, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onHeadingClick }: SidebarProps) {
+export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onHeadingClick }: SidebarProps) {
   const articles = useMemo(() => {
     const flattened: TypeOpenTreeNode[] = []
     const visit = (nodes: TypeOpenTreeNode[]) => nodes.forEach((node) => {
@@ -81,7 +82,7 @@ export function Sidebar({ visible, tab, onTabChange, outline, fileTree, currentF
           <div className="outline-list">
             {outline.length === 0 && <div className="sidebar-empty">No headings</div>}
             {outline.map((item, index) => (
-              <button key={`${item.slug}-${index}`} className={`outline-row level-${item.level}`} onClick={() => onHeadingClick(item)} title={`Line ${item.line}`}>
+              <button key={`${item.slug}-${index}`} className={`outline-row level-${item.level} ${activeOutlineSlug === item.slug ? 'active' : ''}`} onClick={() => onHeadingClick(item)} title={`Line ${item.line}`}>
                 {item.text}
               </button>
             ))}

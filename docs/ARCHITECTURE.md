@@ -29,7 +29,7 @@ Markdown remains the canonical persisted format. Rich editing is a view over Mar
 
 - KaTeX renders inline and block TeX math.
 - TypeOpen-owned Lexical/MDXEditor extensions render standalone `[TOC]` blocks and canonical paired GFM footnotes while serializing back to Markdown.
-- Highlight, superscript and subscript use Lexical text-format commands. HTML comments remain source-mode-only because the current rich model has no lossless inline comment primitive.
+- Highlight, superscript and subscript use Lexical text-format commands. TypeOpen-owned Lexical comment nodes preserve inline and block HTML comments losslessly while keeping them non-rendering in exported document output.
 - Mermaid renders Mermaid and sequence diagrams.
 - flowchart.js renders legacy flowchart fences.
 - CodeMirror supplies fenced-code/source editing inside the Markdown editor.

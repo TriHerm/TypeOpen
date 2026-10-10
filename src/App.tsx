@@ -7,7 +7,7 @@ import { PreferencesDialog, type TypeOpenPreferences } from './components/Prefer
 import { DEFAULT_PAGE_SETUP, PageSetupDialog, type PageSetupState } from './components/PageSetupDialog'
 import { QuickOpen } from './components/QuickOpen'
 import { Sidebar, type SidebarTab } from './components/Sidebar'
-import { containsHtmlCommentOutsideFences, createExportHtml, documentTitle, extractOutline, findMatches, getDocumentStats, replaceAllLiteral, type OutlineItem } from './lib/markdown'
+import { createExportHtml, documentTitle, extractOutline, findMatches, getDocumentStats, replaceAllLiteral, type OutlineItem } from './lib/markdown'
 
 const EMPTY_DOCUMENT = ''
 const PREF_KEY = 'typeopen.preferences.v1'
@@ -121,6 +121,7 @@ export default function App() {
   const [preferences, setPreferences] = useState<TypeOpenPreferences>(() => loadPreferences())
   const [pageSetupVisible, setPageSetupVisible] = useState(false)
   const [pageSetup, setPageSetup] = useState<PageSetupState>(() => loadPageSetup())
+  const [activeOutlineSlug, setActiveOutlineSlug] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -514,15 +515,9 @@ export default function App() {
     }
   }, [showToast])
 
-  const richCommentsRequireSource = useMemo(() => containsHtmlCommentOutsideFences(markdown), [markdown])
-
   const toggleSourceMode = useCallback(() => {
-    if (sourceMode && richCommentsRequireSource) {
-      showToast('HTML comments are source-mode only so they are not lost during rich editing')
-      return
-    }
     setSourceMode((value) => !value)
-  }, [richCommentsRequireSource, showToast, sourceMode])
+  }, [])
 
   const wrapSelection = useCallback((before: string, after = before) => {
     const selected = editorRef.current?.getSelectionMarkdown() ?? ''
@@ -532,8 +527,7 @@ export default function App() {
 
   const handleFormat = useCallback((name: string) => {
     if (name === 'comment') {
-      if (!sourceMode) setSourceMode(true)
-      showToast('HTML comments are preserved in Source mode; rich comment editing is not available yet')
+      wrapSelection('<!-- ', ' -->')
       return
     }
     if (name === 'highlight' || name === 'superscript' || name === 'subscript') {
@@ -544,7 +538,7 @@ export default function App() {
       bold: ['**', '**'], italic: ['*', '*'], underline: ['<u>', '</u>'], code: ['`', '`'], strike: ['~~', '~~']
     }
     if (pairs[name]) wrapSelection(...pairs[name])
-  }, [showToast, sourceMode, wrapSelection])
+  }, [showToast, wrapSelection])
 
   const insertSnippet = useCallback((kind: string) => {
     const snippets: Record<string, string> = {
@@ -598,6 +592,41 @@ export default function App() {
     headings[index]?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }, [outline])
 
+  useEffect(() => {
+    if (sourceMode || outline.length === 0) {
+      setActiveOutlineSlug(null)
+      return
+    }
+    const scroller = document.querySelector<HTMLElement>('.editor-scroll-area')
+    if (!scroller) return
+    let frame = 0
+    const updateActiveHeading = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const headings = Array.from(document.querySelectorAll<HTMLElement>('.typeopen-editor-content h1,.typeopen-editor-content h2,.typeopen-editor-content h3,.typeopen-editor-content h4,.typeopen-editor-content h5,.typeopen-editor-content h6'))
+        if (!headings.length) {
+          setActiveOutlineSlug(null)
+          return
+        }
+        const threshold = scroller.getBoundingClientRect().top + 28
+        let activeIndex = 0
+        for (let index = 0; index < headings.length; index += 1) {
+          if (headings[index].getBoundingClientRect().top <= threshold) activeIndex = index
+          else break
+        }
+        setActiveOutlineSlug(outline[Math.min(activeIndex, outline.length - 1)]?.slug ?? null)
+      })
+    }
+    updateActiveHeading()
+    scroller.addEventListener('scroll', updateActiveHeading, { passive: true })
+    window.addEventListener('resize', updateActiveHeading)
+    return () => {
+      cancelAnimationFrame(frame)
+      scroller.removeEventListener('scroll', updateActiveHeading)
+      window.removeEventListener('resize', updateActiveHeading)
+    }
+  }, [activeDocumentId, markdown, outline, sourceMode])
+
   const openGlobalSearchResult = useCallback(async (result: GlobalSearchResult) => {
     if (await loadFile(result.filePath)) setGlobalSearchVisible(false)
   }, [loadFile])
@@ -613,13 +642,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(PAGE_SETUP_KEY, JSON.stringify(pageSetup))
   }, [pageSetup])
-
-  useEffect(() => {
-    if (richCommentsRequireSource && !sourceMode) {
-      setSourceMode(true)
-      showToast('Opened in Source mode to preserve HTML comments')
-    }
-  }, [richCommentsRequireSource, showToast, sourceMode])
 
   useEffect(() => {
     let style = document.getElementById('typeopen-custom-theme') as HTMLStyleElement | null
@@ -722,7 +744,7 @@ export default function App() {
       else if (command === 'copy-markdown') void window.typeopen.invoke('typeopen:clipboard-write', editorRef.current?.getSelectionMarkdown() || markdown)
       else if (command === 'copy-html') void window.typeopen.invoke('typeopen:clipboard-write', editorRef.current?.getContentEditableHTML() || '')
       else if (command === 'paste-plain') void window.typeopen.invoke<string>('typeopen:clipboard-read').then((text) => editorRef.current?.insertMarkdown(text))
-      else if (command === 'about') showToast('TypeOpen 0.1.1 — open-source Markdown editor')
+      else if (command === 'about') showToast(`TypeOpen ${__TYPEOPEN_VERSION__} — open-source Markdown editor`)
       else if (command === 'documentation') void window.typeopen.invoke('typeopen:open-external', 'https://github.com/TriHerm/TypeOpen')
       else if (command === 'markdown-reference') void window.typeopen.invoke('typeopen:open-external', 'https://commonmark.org/help/')
       else if (command === 'licenses') showToast('TypeOpen is Apache-2.0; third-party notices are included with the project.')
@@ -774,7 +796,7 @@ export default function App() {
         <button className="document-tab-add" title="New Tab" aria-label="New Tab" onClick={newDocument}><Plus size={14} /></button>
       </div>
       <div className="workspace">
-        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onHeadingClick={scrollToHeading} />
+        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} activeOutlineSlug={activeOutlineSlug} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onHeadingClick={scrollToHeading} />
         <main className="document-workspace">
           <FindBar
             visible={findVisible}

@@ -35,3 +35,13 @@ For a Gatekeeper-friendly public release, configure signing and notarization cre
 The repository includes `.env.example` only as a reminder of the expected secret categories. Release credentials belong in the local keychain or the secret store of the CI system used to publish the release.
 
 After signing and notarization, verify the final application and DMG with Apple's `codesign`, `spctl`, `notarytool` and `stapler` commands before publishing.
+
+## Homebrew distribution
+
+The current public `v0.1.1` release is Apple Silicon-only, ad-hoc signed, and not notarized. It therefore does not meet the Gatekeeper requirement for the official `homebrew/cask` repository. The appropriate interim distribution path is a TriHerm-maintained third-party tap.
+
+The reviewable cask and tap layout are staged under [`packaging/homebrew-tap`](../packaging/homebrew-tap/README.md). The intended public repository is `TriHerm/homebrew-tap`, which users would install from as `triherm/tap/typeopen` once that repository is explicitly created and published.
+
+After building the immutable release DMG, run `npm run homebrew:sync` to update the staged cask version and SHA-256 from `package.json` and the exact local artifact. Audit that cask before copying it into the public tap; do not hand-edit a checksum to make a mismatched artifact pass.
+
+Do not disable Homebrew quarantine in the cask. Until a Developer ID signed and notarized build exists, users may need to approve TypeOpen through macOS **System Settings > Privacy & Security > Open Anyway** after the first blocked launch.
