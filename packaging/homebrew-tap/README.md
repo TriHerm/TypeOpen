@@ -1,10 +1,10 @@
-# TypeOpen Homebrew tap staging
+# TypeOpen Homebrew tap
 
-This directory is the reviewable source for a future TriHerm Homebrew tap. It is intentionally kept inside the TypeOpen repository until a separate `TriHerm/homebrew-tap` repository is created and published.
+This directory is the canonical reviewable source for the TypeOpen Cask published through the TriHerm Homebrew tap.
 
-## Intended tap repository
+## Public tap repository
 
-The public tap should be a repository named `TriHerm/homebrew-tap` with this layout:
+The public tap is `TriHerm/homebrew-tap` with this layout:
 
 ```text
 homebrew-tap/
@@ -27,9 +27,9 @@ Homebrew maps the short tap name `triherm/tap` to `https://github.com/TriHerm/ho
 - Signing: ad-hoc
 - Notarization: none
 
-The checksum above is generated from the exact local release-candidate DMG by `npm run homebrew:sync`. After the GitHub release is published, verify that the uploaded asset digest matches this value before publishing or updating the tap.
+The checksum above is generated from the exact release DMG by `npm run homebrew:sync`. Before publishing or updating the tap, verify that the uploaded GitHub release asset digest matches this value.
 
-## Install and uninstall once the tap exists
+## Install and uninstall
 
 The preferred one-command install is the fully qualified cask name:
 

@@ -38,9 +38,9 @@ After signing and notarization, verify the final application and DMG with Apple'
 
 ## Homebrew distribution
 
-The current public `v0.1.1` release is Apple Silicon-only, ad-hoc signed, and not notarized. It therefore does not meet the Gatekeeper requirement for the official `homebrew/cask` repository. The appropriate interim distribution path is a TriHerm-maintained third-party tap.
+The current public `v0.1.2` release is Apple Silicon-only, ad-hoc signed, and not notarized. It therefore does not meet the Gatekeeper requirement for the official `homebrew/cask` repository. The appropriate interim distribution path is a TriHerm-maintained third-party tap.
 
-The reviewable cask and tap layout are staged under [`packaging/homebrew-tap`](../packaging/homebrew-tap/README.md). The intended public repository is `TriHerm/homebrew-tap`, which users would install from as `triherm/tap/typeopen` once that repository is explicitly created and published.
+The reviewable cask and tap layout are maintained under [`packaging/homebrew-tap`](../packaging/homebrew-tap/README.md) and published to `TriHerm/homebrew-tap`, which users install from as `triherm/tap/typeopen`.
 
 After building the immutable release DMG, run `npm run homebrew:sync` to update the staged cask version and SHA-256 from `package.json` and the exact local artifact. Audit that cask before copying it into the public tap; do not hand-edit a checksum to make a mismatched artifact pass.
 

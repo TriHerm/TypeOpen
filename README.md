@@ -75,7 +75,7 @@ npm run pack
 
 The native application is written to `release/native-arm64/TypeOpen.app`; the compressed image is `release/TypeOpen-<version>-arm64.dmg`. The shell links only system AppKit/WebKit frameworks and reuses the compiled Vite renderer, so it does not package Chromium, Node.js, Electron Framework, or an ASAR. Local builds use ad-hoc signing so bundle integrity can be verified without private credentials. A public Gatekeeper-friendly distribution still requires an Apple Developer ID Application certificate plus Apple notarization credentials.
 
-The verified `0.1.2` Apple Silicon release candidate is about **10.3 MiB installed** and **4.5 MB as a DMG**, down from the Electron-based `0.1.0` package that was roughly 194 MB as a DMG.
+The verified `0.1.2` Apple Silicon release is about **10.3 MiB installed** and **5.2 MB as a DMG**, down from the Electron-based `0.1.0` package that was roughly 194 MB as a DMG.
 
 The retained Electron fallback can still be packaged explicitly with `npm run pack:electron`, `npm run dmg:electron`, or `npm run dmg:electron:universal`. Those commands are migration aids rather than the default distribution path.
 
@@ -91,13 +91,13 @@ npm run verify:dist
 
 ## Homebrew
 
-TypeOpen includes a reviewable Homebrew Cask under [`packaging/homebrew-tap`](packaging/homebrew-tap/README.md). The intended public install command is:
+TypeOpen is also distributed through the TriHerm Homebrew tap. The public install command is:
 
 ```bash
 brew install --cask triherm/tap/typeopen
 ```
 
-That command becomes live when the matching immutable GitHub release and the separate `TriHerm/homebrew-tap` repository are published. Until TypeOpen is Developer ID signed and notarized, the custom tap intentionally keeps macOS quarantine enabled and documents the normal **Privacy & Security → Open Anyway** flow rather than bypassing Gatekeeper.
+The matching Cask source is maintained under [`packaging/homebrew-tap`](packaging/homebrew-tap/README.md) and published to `TriHerm/homebrew-tap`. Until TypeOpen is Developer ID signed and notarized, the custom tap intentionally keeps macOS quarantine enabled and documents the normal **Privacy & Security → Open Anyway** flow rather than bypassing Gatekeeper.
 
 ## Architecture
 
