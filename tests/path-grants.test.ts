@@ -1,0 +1,139 @@
+import { createRequire } from 'node:module'
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+
+const require = createRequire(import.meta.url)
+const { createPathGrants, isInsideOrEqual } = require('../electron/path-grants.cjs') as {
+  createPathGrants: () => {
+    grantDocument(filePath: string): string
+    revokeDocument(filePath: string): void
+    setFolder(folderPath: string): string | null
+    clearFolder(): void
+    getFolder(): string | null
+    isDocumentGranted(filePath: string): boolean
+    canReadDocument(filePath: string): boolean
+    canWriteDocument(filePath: string): boolean
+    canListFolder(folderPath: string): boolean
+    isCurrentFolder(folderPath: string): boolean
+  }
+  isInsideOrEqual: (targetPath: string, folderPath: string) => boolean
+}
+
+const tempRoots: string[] = []
+
+async function tempRoot() {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'typeopen-grants-'))
+  tempRoots.push(root)
+  return root
+}
+
+afterEach(async () => {
+  await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
+
+describe('main-process path grants', () => {
+  it('allows a selected folder and descendants without granting sibling paths', async () => {
+    const temp = await tempRoot()
+    const root = path.join(temp, 'workspace')
+    const notes = path.join(root, 'notes')
+    const document = path.join(notes, 'one.md')
+    const sibling = path.join(temp, 'private')
+    const secret = path.join(sibling, 'secret.md')
+    await mkdir(notes, { recursive: true })
+    await mkdir(sibling)
+    await writeFile(document, '# One')
+    await writeFile(secret, '# Secret')
+    const grants = createPathGrants()
+    grants.setFolder(root)
+
+    expect(grants.getFolder()).toBe(root)
+    expect(grants.isCurrentFolder(root)).toBe(true)
+    expect(grants.canListFolder(notes)).toBe(true)
+    expect(grants.canReadDocument(document)).toBe(true)
+    expect(grants.canReadDocument(secret)).toBe(false)
+    expect(isInsideOrEqual(path.join(root, '..', 'private'), root)).toBe(false)
+  })
+
+  it('requires an explicit document grant for writes and preserves it across folder changes', async () => {
+    const root = await tempRoot()
+    const firstFolder = path.join(root, 'first')
+    const secondFolder = path.join(root, 'second')
+    const document = path.join(firstFolder, 'open.md')
+    await mkdir(firstFolder)
+    await mkdir(secondFolder)
+    await writeFile(document, '# Open')
+    const grants = createPathGrants()
+    grants.setFolder(firstFolder)
+
+    expect(grants.canReadDocument(document)).toBe(true)
+    expect(grants.canWriteDocument(document)).toBe(false)
+    grants.grantDocument(document)
+    expect(grants.canWriteDocument(document)).toBe(true)
+
+    grants.setFolder(secondFolder)
+    expect(grants.canReadDocument(document)).toBe(true)
+    expect(grants.canWriteDocument(document)).toBe(true)
+    expect(grants.canReadDocument(path.join(firstFolder, 'not-opened.md'))).toBe(false)
+  })
+
+  it('revokes moved document paths without affecting the replacement grant', async () => {
+    const root = await tempRoot()
+    const source = path.join(root, 'source.md')
+    const destination = path.join(root, 'archive', 'source.md')
+    await mkdir(path.dirname(destination))
+    await writeFile(source, '# Source')
+    await writeFile(destination, '# Destination')
+    const grants = createPathGrants()
+    grants.grantDocument(source)
+    grants.revokeDocument(source)
+    grants.grantDocument(destination)
+
+    expect(grants.canWriteDocument(source)).toBe(false)
+    expect(grants.canWriteDocument(destination)).toBe(true)
+  })
+
+  it('invalidates an exact document grant when the path is replaced by an external symlink', async () => {
+    const root = await tempRoot()
+    const workspace = path.join(root, 'workspace')
+    const outside = path.join(root, 'outside')
+    const document = path.join(workspace, 'open.md')
+    const secret = path.join(outside, 'secret.md')
+    await mkdir(workspace)
+    await mkdir(outside)
+    await writeFile(document, '# Open')
+    await writeFile(secret, '# Secret')
+
+    const grants = createPathGrants()
+    grants.setFolder(workspace)
+    grants.grantDocument(document)
+    expect(grants.isDocumentGranted(document)).toBe(true)
+    expect(grants.canWriteDocument(document)).toBe(true)
+
+    await rm(document)
+    await symlink(secret, document)
+
+    expect(grants.isDocumentGranted(document)).toBe(false)
+    expect(grants.canReadDocument(document)).toBe(false)
+    expect(grants.canWriteDocument(document)).toBe(false)
+  })
+
+  it('revokes a folder grant if the selected folder path is replaced by a symlink', async () => {
+    const root = await tempRoot()
+    const workspace = path.join(root, 'workspace')
+    const outside = path.join(root, 'outside')
+    await mkdir(workspace)
+    await mkdir(outside)
+    const grants = createPathGrants()
+    grants.setFolder(workspace)
+    expect(grants.getFolder()).toBe(workspace)
+
+    await rm(workspace, { recursive: true })
+    await symlink(outside, workspace)
+
+    expect(grants.getFolder()).toBeNull()
+    expect(grants.isCurrentFolder(workspace)).toBe(false)
+    expect(grants.canListFolder(workspace)).toBe(false)
+  })
+})

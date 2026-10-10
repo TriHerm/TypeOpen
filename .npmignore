@@ -1,0 +1,14 @@
+Typora.app/
+.rea-evidence/
+node_modules/
+dist/
+release/
+coverage/
+.DS_Store
+*.log
+*.p12
+*.cer
+*.provisionprofile
+.env
+.env.*
+!.env.example

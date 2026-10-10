@@ -1,0 +1,22 @@
+# Third-party notices
+
+TypeOpen depends on open-source software. The package lock is the authoritative version inventory for a build. Major direct runtime dependencies include:
+
+| Package | Purpose | License |
+| --- | --- | --- |
+| Electron | desktop runtime | MIT |
+| React / React DOM | renderer UI | MIT |
+| @mdxeditor/editor | Markdown WYSIWYG editor framework | MIT |
+| Lexical / @lexical/list | editor engine and list primitives | MIT |
+| KaTeX | math rendering | MIT |
+| Mermaid | diagrams | MIT |
+| flowchart.js | legacy flowchart diagrams | MIT |
+| marked | Markdown rendering for export | MIT |
+| DOMPurify | export sanitization | MPL-2.0 OR Apache-2.0 |
+| mdast-util-gfm-footnote | GFM footnote Markdown AST parsing/serialization | MIT |
+| mdast-util-math | math Markdown AST extension | MIT |
+| micromark-extension-gfm-footnote | GFM footnote Markdown syntax | MIT |
+| micromark-extension-math | math Markdown syntax | MIT |
+| lucide-react | UI icons | ISC |
+
+Each dependency remains subject to its own license and notices. Run `npm ls --all` against the locked install to inspect the complete transitive dependency graph.

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+release/
+.DS_Store
+*.log
+.vite/
+coverage/
+
+# Proprietary reference application and local REA working evidence are never shipped.
+Typora.app/
+.rea-evidence/
+
+# Local signing/notarization material.
+*.p12
+*.cer
+*.provisionprofile
+.env
+.env.*
+!.env.example
