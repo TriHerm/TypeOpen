@@ -1,9 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="TypeOpen icon">
-  <rect width="1024" height="1024" rx="220" fill="#f6f6f4"/>
-  <rect x="96" y="96" width="832" height="832" rx="210" fill="#181818"/>
-  <rect x="180" y="180" width="664" height="664" rx="150" fill="#f6f6f4"/>
-  <rect x="700" y="310" width="160" height="404" fill="#f6f6f4"/>
-  <rect x="300" y="320" width="380" height="85" rx="34" fill="#181818"/>
-  <rect x="447" y="360" width="86" height="340" rx="38" fill="#181818"/>
-  <path d="M622 575 L700 512 L700 562 L660 596 L700 630 L700 680" fill="none" stroke="#181818" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">TypeOpen app icon</title>
+  <desc id="desc">Black TypeOpen TO monogram with an orange flame on a white rounded square.</desc>
+  <defs>
+    <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2d3138"/>
+      <stop offset="1" stop-color="#171a20"/>
+    </linearGradient>
+    <linearGradient id="flame" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#ffb64f"/>
+      <stop offset="0.48" stop-color="#ff7d35"/>
+      <stop offset="1" stop-color="#f24b24"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="52" y="52" width="920" height="920" rx="216" fill="#fff"/>
+
+  <!-- Flame sits behind the O, matching the supplied TypeOpen mark. -->
+  <path fill="url(#flame)" d="M650 438c70-57 160-67 217-113 38-31 57-62 62-91 8 92-18 141-68 192-41 42-62 83-56 132 5 45 34 79 38 145-47-38-80-82-103-130-25-52-51-93-90-135Z"/>
+  <path fill="url(#flame)" d="M834 450c35-48 65-64 96-91-20 63-7 98 10 138 22 53 16 108-9 159-16 33-39 61-71 87 22-53 17-101 4-145-14-48-40-95-30-148Z"/>
+
+  <!-- T -->
+  <path fill="url(#ink)" d="M122 278h525v108H431v372H300V386H122Z"/>
+
+  <!-- O -->
+  <path fill="url(#ink)" fill-rule="evenodd" d="M666 374c-123 0-223 99-223 222s100 222 223 222 223-99 223-222-100-222-223-222Zm0 94c71 0 129 57 129 128s-58 128-129 128-129-57-129-128 58-128 129-128Z"/>
+  <circle cx="666" cy="596" r="128" fill="#fff"/>
 </svg>

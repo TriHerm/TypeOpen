@@ -1,6 +1,12 @@
+<p align="center">
+  <img src="build/icon.png" width="128" height="128" alt="TypeOpen logo" />
+</p>
+
 # TypeOpen
 
 TypeOpen is a TriHerm Labs open-source desktop Markdown editor for macOS focused on a clean live editing workflow: write Markdown while seeing a rendered document, switch to source when needed, navigate a folder/outline, and export to common document formats.
+
+The default macOS build uses a small Swift/AppKit shell with the system WKWebView rather than bundling Chromium. This keeps the application in the same lightweight architectural class as native WebKit editors while preserving TypeOpen's React/Lexical editor surface.
 
 This project is an independent clean-room implementation. It does not contain Typora source code, decompiled function bodies, icons, themes, license/update mechanisms, or proprietary assets. REA was used locally to inventory user-visible behavior from a legally supplied application bundle; the reference application and raw REA evidence are explicitly excluded from Git and release artifacts.
 
@@ -30,9 +36,10 @@ See [`docs/PARITY_MATRIX.md`](docs/PARITY_MATRIX.md) for the exact feature/evide
 
 ## Requirements
 
-- macOS 13 or newer for the current Electron 44 target.
+- macOS 13 or newer for the native AppKit/WebKit shell.
 - Node.js 22.12+ (Node 26 is used for the current development build).
 - npm 11+.
+- Xcode Command Line Tools with `swiftc` for native desktop builds.
 - Optional: Pandoc 2+ for advanced import/export formats.
 
 ## Development
@@ -43,6 +50,8 @@ npm run typecheck
 npm test
 npm run dev
 ```
+
+`npm run dev` builds and launches the native WKWebView application. The previous Electron shell remains in the repository temporarily as a migration fallback and can be launched with `npm run dev:electron` while native parity is being validated.
 
 Production renderer build:
 
@@ -58,13 +67,17 @@ Build an ad-hoc signed local Apple Silicon DMG:
 npm run dmg
 ```
 
-Build a universal DMG when both Electron architectures are available:
+Build just the native application bundle:
 
 ```bash
-npm run dmg:universal
+npm run pack
 ```
 
-Release artifacts are written to `release/`. Local builds use ad-hoc signing so bundle integrity can be verified without private credentials. A public Gatekeeper-friendly distribution still requires an Apple Developer ID Application certificate plus Apple notarization credentials.
+The native application is written to `release/native-arm64/TypeOpen.app`; the compressed image is `release/TypeOpen-<version>-arm64.dmg`. The shell links only system AppKit/WebKit frameworks and reuses the compiled Vite renderer, so it does not package Chromium, Node.js, Electron Framework, or an ASAR. Local builds use ad-hoc signing so bundle integrity can be verified without private credentials. A public Gatekeeper-friendly distribution still requires an Apple Developer ID Application certificate plus Apple notarization credentials.
+
+The verified `0.1.1` Apple Silicon build is about **10.3 MiB installed** and **4.3 MB as a DMG**, down from the Electron-based `0.1.0` package that was roughly 194 MB as a DMG.
+
+The retained Electron fallback can still be packaged explicitly with `npm run pack:electron`, `npm run dmg:electron`, or `npm run dmg:electron:universal`. Those commands are migration aids rather than the default distribution path.
 
 ## Verification
 
@@ -74,12 +87,12 @@ npm run dmg
 npm run verify:dist
 ```
 
-`verify` checks the clean-room tracked-file boundary, Electron/CommonJS syntax, TypeScript, tests, renderer build and runtime dependency audit. `verify:dist` verifies the ad-hoc app signature, Apple Silicon architecture, bundle identifier, DMG checksum/mount, mounted app, and absence of local reference/evidence or signing-secret material from the packaged ASAR. `audit:runtime` fails at moderate severity or higher; the current dependency graph has no runtime moderate/high/critical advisories. See [`docs/RELEASING.md`](docs/RELEASING.md) for the full release procedure. For a public Developer ID release, additionally run Apple's `codesign`, `spctl`, `notarytool` and `stapler` verification steps.
+`verify` checks the clean-room tracked-file boundary, native Swift typechecking, the retained Electron/CommonJS fallback syntax, TypeScript, tests, renderer build and dependency audit. `verify:dist` verifies the native ad-hoc app signature, Apple Silicon architecture, bundle identifier, DMG checksum/mount, mounted app, required renderer/bridge resources, and absence of Electron packaging or local reference/evidence material from the native bundle. See [`docs/RELEASING.md`](docs/RELEASING.md) for the full release procedure. For a public Developer ID release, additionally run Apple's `codesign`, `spctl`, `notarytool` and `stapler` verification steps.
 
 ## Architecture
 
-- Electron main process: local files, native dialogs, menus, printing/export and macOS integration.
-- Sandboxed preload: a minimal whitelisted IPC bridge.
+- Swift/AppKit host: native window lifecycle, dialogs, menus, file associations, printing/export and macOS integration.
+- WKWebView bridge: a small injected `window.typeopen` adapter with an allowlisted request surface and main-frame-only native message handling.
 - React renderer: TypeOpen shell, sidebar, preferences, find/replace and status surfaces.
 - MDXEditor/Lexical: live Markdown editor surface.
 - KaTeX, Mermaid and flowchart.js: math/diagram rendering.

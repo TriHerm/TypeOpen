@@ -722,7 +722,7 @@ export default function App() {
       else if (command === 'copy-markdown') void window.typeopen.invoke('typeopen:clipboard-write', editorRef.current?.getSelectionMarkdown() || markdown)
       else if (command === 'copy-html') void window.typeopen.invoke('typeopen:clipboard-write', editorRef.current?.getContentEditableHTML() || '')
       else if (command === 'paste-plain') void window.typeopen.invoke<string>('typeopen:clipboard-read').then((text) => editorRef.current?.insertMarkdown(text))
-      else if (command === 'about') showToast('TypeOpen 0.1.0 — open-source Markdown editor')
+      else if (command === 'about') showToast('TypeOpen 0.1.1 — open-source Markdown editor')
       else if (command === 'documentation') void window.typeopen.invoke('typeopen:open-external', 'https://github.com/TriHerm/TypeOpen')
       else if (command === 'markdown-reference') void window.typeopen.invoke('typeopen:open-external', 'https://commonmark.org/help/')
       else if (command === 'licenses') showToast('TypeOpen is Apache-2.0; third-party notices are included with the project.')

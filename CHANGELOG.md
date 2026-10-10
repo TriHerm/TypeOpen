@@ -2,6 +2,19 @@
 
 All notable TypeOpen changes are recorded here.
 
+## 0.1.1 — 2026-10-09
+
+Lightweight native macOS release.
+
+- Replaced the default Electron package with an original Swift/AppKit + system WKWebView shell while preserving the existing React renderer and `window.typeopen` bridge contract.
+- Removed bundled Chromium/Node/Electron runtime payload from the default application and DMG.
+- Added native file dialogs, menus, file associations, dirty-close lifecycle, clipboard/Finder integration, WebKit PDF/PNG/print rendering and Pandoc execution.
+- Added a confined `typeopen://app/` renderer scheme so packaged ES modules run under WKWebView without broad `file:` access.
+- Hardened native path grants, TextBundle/image I/O and local custom-theme CSS against symlink swaps and escaped remote-resource constructs.
+- Switched production renderer builds to the macOS 13 / Safari 16 syntax floor and stopped shipping production source maps.
+- Updated the application icon to the TypeOpen flame monogram.
+- Kept the previous Electron shell only as an explicit development/migration fallback.
+
 ## 0.1.0 — 2026-10-09
 
 Initial open-source macOS release.

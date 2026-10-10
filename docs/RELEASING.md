@@ -13,7 +13,7 @@ npm run dmg
 npm run verify:dist
 ```
 
-`npm run dmg` removes the previous `release/` directory before packaging so a partially generated application bundle cannot be mistaken for a valid release.
+`npm run dmg` removes stale release artifacts, builds the production Vite renderer, compiles the Apple Silicon Swift/AppKit shell, ad-hoc signs `release/native-arm64/TypeOpen.app`, and creates `release/TypeOpen-<version>-arm64.dmg`.
 
 `npm run verify:dist` checks all of the following:
 
@@ -21,9 +21,12 @@ npm run verify:dist
 - the executable contains the expected Apple Silicon architecture;
 - the DMG checksum is valid and the image mounts read-only;
 - the mounted application passes the same signature and architecture checks;
-- neither `Typora.app` nor `.rea-evidence`, local `.env` secrets, nor signing certificate/key material appears in the packaged ASAR;
+- the native bundle contains the production renderer and native bridge;
+- the native bundle contains no Electron Framework, `app.asar`, `Typora.app`, or `.rea-evidence` material;
 - the packaged and mounted applications use the bundle identifier declared in `package.json`;
 - the final DMG SHA-256 digest is printed for release notes.
+
+The Electron shell is retained temporarily for migration comparison. Its package commands are explicitly named `pack:electron`, `dmg:electron`, and `dmg:electron:universal`; they are not used by the default release procedure.
 
 ## Developer ID release
 

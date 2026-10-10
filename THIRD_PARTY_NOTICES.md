@@ -1,10 +1,10 @@
 # Third-party notices
 
-TypeOpen depends on open-source software. The package lock is the authoritative version inventory for a build. Major direct runtime dependencies include:
+TypeOpen depends on open-source software. The package lock is the authoritative version inventory for a build. Renderer libraries are bundled into the production assets at build time rather than copied as a production `node_modules` tree. Major application/runtime components include:
 
 | Package | Purpose | License |
 | --- | --- | --- |
-| Electron | desktop runtime | MIT |
+| Electron | legacy development/fallback desktop shell | MIT |
 | React / React DOM | renderer UI | MIT |
 | @mdxeditor/editor | Markdown WYSIWYG editor framework | MIT |
 | Lexical / @lexical/list | editor engine and list primitives | MIT |

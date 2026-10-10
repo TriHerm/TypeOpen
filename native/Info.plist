@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleDisplayName</key>
+  <string>TypeOpen</string>
+  <key>CFBundleExecutable</key>
+  <string>TypeOpen</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.triherm.typeopen</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>TypeOpen</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>__VERSION__</string>
+  <key>CFBundleVersion</key>
+  <string>__BUILD_VERSION__</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.productivity</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>md</string><string>markdown</string><string>mmd</string><string>mdown</string>
+        <string>mkd</string><string>mdwn</string><string>mdtxt</string><string>mdtext</string>
+        <string>rmarkdown</string><string>rmd</string><string>apib</string><string>qmd</string><string>mdx</string>
+      </array>
+      <key>CFBundleTypeName</key>
+      <string>Markdown</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+    </dict>
+    <dict>
+      <key>CFBundleTypeExtensions</key>
+      <array><string>txt</string><string>text</string></array>
+      <key>CFBundleTypeName</key>
+      <string>Plain Text</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+    </dict>
+    <dict>
+      <key>CFBundleTypeExtensions</key>
+      <array><string>textbundle</string></array>
+      <key>CFBundleTypeName</key>
+      <string>TextBundle</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSTypeIsPackage</key>
+      <true/>
+    </dict>
+  </array>
+</dict>
+</plist>

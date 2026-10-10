@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  source:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -25,5 +25,30 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify source
-        run: npm run verify
+      - name: Verify portable source
+        run: npm run verify:portable
+
+  native:
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify native shell
+        run: npm run verify:native
+
+      - name: Build native DMG
+        run: npm run native:dmg
+
+      - name: Verify native DMG
+        run: npm run native:verify

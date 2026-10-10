@@ -42,17 +42,17 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Comment | static Format menu | Partial | HTML comments are source-mode-only. TypeOpen detects comments outside fenced code and keeps that document in Source mode so rich serialization cannot silently discard them; no specialized rich inline comment model is claimed |
 | Copy as Markdown / HTML | static Edit menu | Implemented | Selection/document Markdown and editor HTML copied to clipboard |
 | Paste as plain text | static Edit menu | Implemented | Clipboard text insertion |
-| PDF export | static export resources | Implemented | Chromium print-to-PDF using TypeOpen export stylesheet |
+| PDF export | static export resources | Implemented | Native AppKit `NSPrintOperation` over system WKWebView using the TypeOpen export stylesheet |
 | HTML export | static export resources | Implemented | Styled and style-stripped HTML |
 | Image export | static export resources | Implemented | PNG capture of rendered document |
 | DOCX/ODT/RTF/EPUB/LaTeX/MediaWiki | static Pandoc/import-export resources | Implemented when Pandoc exists | No bundled Pandoc; clear unavailable result otherwise |
 | Import via Pandoc | static import/Pandoc resources | Implemented when Pandoc exists | DOCX, ODT, RTF, EPUB, LaTeX, RST, Org, OPML candidates |
 | Appearance | static preferences | Implemented | System/light/dark, content width and font size |
-| Spellcheck | static edit/preferences | Implemented | Chromium/macOS spellchecker and suggestions |
+| Spellcheck | static edit/preferences | Implemented | System WebKit/macOS text services and contextual suggestions |
 | Autosave | exact reference recovery semantics unknown | Implemented | Optional debounced save for an existing file |
 | Tabs / multi-document model | static New Tab / document switching | Implemented | Renderer-owned tabs preserve per-document dirty state, Save All, close prompts and next/previous switching |
 | Custom themes | static theme preferences | Implemented | Built-in light/dark/system remain available; users can explicitly choose a local CSS file that is size-limited and rejected if it contains external-resource/executable CSS constructs. Reference themes/assets are intentionally not copied |
-| Page Setup | static File menu | Implemented | TypeOpen-owned dialog configures paper size, portrait/landscape orientation, and margins; the settings feed both Chromium PDF export and native print output |
+| Page Setup | static File menu | Implemented | TypeOpen-owned dialog configures paper size, portrait/landscape orientation, and margins; settings map to `NSPrintInfo` for native PDF export and printing |
 | Pixel-identical native UI | runtime capture blocked | Reference unknown | REA live native UI observation was denied Screen Recording and Accessibility permissions; TypeOpen uses an original UI |
 
 ## Evidence boundary
