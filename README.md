@@ -6,6 +6,8 @@
 
 TypeOpen is a TriHerm Labs open-source desktop Markdown editor for macOS focused on a clean live editing workflow: write Markdown while seeing a rendered document, switch to source when needed, navigate a folder/outline, and export to common document formats.
 
+[![Download latest DMG](https://img.shields.io/badge/Download-Latest%20DMG-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/TriHerm/TypeOpen/releases/latest)
+
 The default macOS build uses a small Swift/AppKit shell with the system WKWebView rather than bundling Chromium. This keeps the application in the same lightweight architectural class as native WebKit editors while preserving TypeOpen's React/Lexical editor surface.
 
 This project is an independent clean-room implementation. It does not contain Typora source code, decompiled function bodies, icons, themes, license/update mechanisms, or proprietary assets. REA was used locally to inventory user-visible behavior from a legally supplied application bundle; the reference application and raw REA evidence are explicitly excluded from Git and release artifacts.
