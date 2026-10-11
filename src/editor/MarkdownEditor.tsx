@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import {
   activeEditor$,
   BlockTypeSelect,
@@ -39,13 +39,15 @@ import {
 } from '@mdxeditor/editor'
 import { $isListItemNode } from '@lexical/list'
 import { $createHeadingNode, type HeadingTagType } from '@lexical/rich-text'
-import { $getSelection, $isRangeSelection, FORMAT_TEXT_COMMAND, INDENT_CONTENT_COMMAND, OUTDENT_CONTENT_COMMAND, SET_TEXT_FORMAT_COMMAND, type LexicalNode, type TextFormatType } from 'lexical'
+import { $getSelection, $isRangeSelection, $isTextNode, FORMAT_TEXT_COMMAND, INDENT_CONTENT_COMMAND, OUTDENT_CONTENT_COMMAND, SET_TEXT_FORMAT_COMMAND, type LexicalNode, type TextFormatType } from 'lexical'
 import { DiagramCodeBlockEditor } from './DiagramCodeBlockEditor'
+import { SlashCommandMenu } from './SlashCommandMenu'
 import { createHtmlCommentToken, decodeHtmlCommentsFromRichEditor, encodeHtmlCommentsForRichEditor } from './commentEncoding'
 import { typeOpenCommentPlugin } from './commentPlugin'
 import { typeOpenFootnotePlugin } from './footnotePlugin'
 import { typeOpenMathPlugin } from './mathPlugin'
 import { typeOpenTocPlugin } from './tocPlugin'
+import { filterSlashCommands, parseSlashQuery, type SlashCommand } from './slashCommands'
 
 type EditorRealm = Parameters<NonNullable<RealmPlugin['postInit']>>[0]
 
@@ -73,6 +75,7 @@ interface MarkdownEditorProps {
   imageUpload?: (file: File) => Promise<string>
   imagePreview?: (source: string) => Promise<string>
   toolbarVisible?: boolean
+  onSlashCommand?: (insertKind: string) => void
 }
 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({
@@ -83,11 +86,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   spellCheck = true,
   imageUpload,
   imagePreview,
-  toolbarVisible = false
+  toolbarVisible = false,
+  onSlashCommand
 }, forwardedRef) {
   const editorRef = useRef<MDXEditorMethods>(null)
   const realmRef = useRef<EditorRealm | null>(null)
+  const surfaceRef = useRef<HTMLDivElement>(null)
   const commentToken = useRef(createHtmlCommentToken()).current
+  const [slashMenu, setSlashMenu] = useState<{ query: string; x: number; y: number } | null>(null)
+  const [slashIndex, setSlashIndex] = useState(0)
   const commandBridgePlugin = useMemo<RealmPlugin>(() => ({
     postInit(realm) { realmRef.current = realm },
     update(realm) { realmRef.current = realm }
@@ -152,6 +159,105 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const editor = realm.getValue(activeEditor$)
     return editor?.getRootElement() ? { realm, editor } : null
   }
+
+  const visibleSlashCommands = useMemo(
+    () => slashMenu ? filterSlashCommands(slashMenu.query) : [],
+    [slashMenu]
+  )
+
+  const syncSlashMenu = useCallback(() => {
+    if (sourceMode || readOnly) {
+      setSlashMenu(null)
+      return
+    }
+    const contentRoot = surfaceRef.current?.querySelector<HTMLElement>('.typeopen-editor-content')
+    const selection = window.getSelection()
+    if (!contentRoot || !selection || !selection.isCollapsed || !selection.anchorNode || !contentRoot.contains(selection.anchorNode)) {
+      setSlashMenu(null)
+      return
+    }
+    if (selection.anchorNode.nodeType !== Node.TEXT_NODE) {
+      setSlashMenu(null)
+      return
+    }
+    const match = parseSlashQuery(selection.anchorNode.textContent ?? '', selection.anchorOffset)
+    if (!match) {
+      setSlashMenu(null)
+      return
+    }
+
+    const range = selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null
+    const rect = range && typeof range.getBoundingClientRect === 'function'
+      ? range.getBoundingClientRect()
+      : ({ left: 24, right: 24, top: 80, bottom: 80 } as DOMRect)
+    const menuWidth = 292
+    const menuHeight = 360
+    const x = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8))
+    const below = rect.bottom + 7
+    const y = below + menuHeight <= window.innerHeight
+      ? below
+      : Math.max(8, rect.top - menuHeight - 7)
+    setSlashMenu({ query: match.query, x, y })
+  }, [readOnly, sourceMode])
+
+  const removeSlashQuery = useCallback(() => {
+    const context = getMutableRichEditor()
+    if (!context) return false
+    let removed = false
+    context.editor.update(() => {
+      const selection = $getSelection()
+      if (!$isRangeSelection(selection) || !selection.isCollapsed()) return
+      const node = selection.anchor.getNode()
+      if (!$isTextNode(node)) return
+      const match = parseSlashQuery(node.getTextContent(), selection.anchor.offset)
+      if (!match) return
+      node.spliceText(match.start, match.length, '', true)
+      node.select(match.start, match.start)
+      removed = true
+    }, { discrete: true })
+    return removed
+  }, [])
+
+  const executeSlashCommand = useCallback((command: SlashCommand) => {
+    if (!removeSlashQuery()) return
+    setSlashMenu(null)
+    setSlashIndex(0)
+    onSlashCommand?.(command.insertKind)
+    queueMicrotask(() => editorRef.current?.focus())
+  }, [onSlashCommand, removeSlashQuery])
+
+  const handleSurfaceKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!slashMenu) return
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setSlashMenu(null)
+      return
+    }
+    if (!visibleSlashCommands.length) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setSlashIndex((index) => (index + 1) % visibleSlashCommands.length)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setSlashIndex((index) => (index - 1 + visibleSlashCommands.length) % visibleSlashCommands.length)
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      executeSlashCommand(visibleSlashCommands[Math.min(slashIndex, visibleSlashCommands.length - 1)])
+    }
+  }, [executeSlashCommand, slashIndex, slashMenu, visibleSlashCommands])
+
+  useEffect(() => {
+    setSlashIndex(0)
+  }, [slashMenu?.query])
+
+  useEffect(() => {
+    document.addEventListener('selectionchange', syncSlashMenu)
+    window.addEventListener('resize', syncSlashMenu)
+    return () => {
+      document.removeEventListener('selectionchange', syncSlashMenu)
+      window.removeEventListener('resize', syncSlashMenu)
+    }
+  }, [syncSlashMenu])
 
   useImperativeHandle(forwardedRef, () => ({
     getMarkdown: () => sourceMode ? (editorRef.current?.getMarkdown() ?? markdown) : decodeHtmlCommentsFromRichEditor(editorRef.current?.getMarkdown() ?? markdown, commentToken),
@@ -240,18 +346,36 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }), [markdown, sourceMode])
 
   return (
-    <MDXEditor
-      ref={editorRef}
-      markdown={sourceMode ? markdown : encodeHtmlCommentsForRichEditor(markdown, commentToken)}
-      trim={false}
-      onChange={(value, normalized) => { if (!normalized) onChange(sourceMode ? value : decodeHtmlCommentsFromRichEditor(value, commentToken)) }}
-      onError={(payload) => console.warn('Markdown parse error', payload.error)}
-      readOnly={readOnly}
-      spellCheck={spellCheck}
-      suppressHtmlProcessing={sourceMode}
-      className="typeopen-mdx-root"
-      contentEditableClassName="typeopen-editor-content"
-      plugins={plugins}
-    />
+    <div
+      ref={surfaceRef}
+      className="typeopen-editor-surface"
+      onInput={syncSlashMenu}
+      onKeyDownCapture={handleSurfaceKeyDown}
+    >
+      <MDXEditor
+        ref={editorRef}
+        markdown={sourceMode ? markdown : encodeHtmlCommentsForRichEditor(markdown, commentToken)}
+        trim={false}
+        onChange={(value, normalized) => { if (!normalized) onChange(sourceMode ? value : decodeHtmlCommentsFromRichEditor(value, commentToken)) }}
+        onError={(payload) => console.warn('Markdown parse error', payload.error)}
+        readOnly={readOnly}
+        spellCheck={spellCheck}
+        suppressHtmlProcessing={sourceMode}
+        className="typeopen-mdx-root"
+        contentEditableClassName="typeopen-editor-content"
+        plugins={plugins}
+      />
+      {slashMenu && (
+        <SlashCommandMenu
+          commands={visibleSlashCommands}
+          selectedIndex={Math.min(slashIndex, Math.max(0, visibleSlashCommands.length - 1))}
+          x={slashMenu.x}
+          y={slashMenu.y}
+          query={slashMenu.query}
+          onHover={setSlashIndex}
+          onSelect={executeSlashCommand}
+        />
+      )}
+    </div>
   )
 })

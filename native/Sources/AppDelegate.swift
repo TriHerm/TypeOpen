@@ -42,7 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let contentFrame = NSRect(x: 0, y: 0, width: 1180, height: 820)
         let rootView = NSView(frame: contentFrame)
 
-        webView = WKWebView(frame: rootView.bounds, configuration: configuration)
+        let typeOpenWebView = TypeOpenWebView(frame: rootView.bounds, configuration: configuration)
+        webView = typeOpenWebView
         webView.autoresizingMask = [.width, .height]
         webView.allowsMagnification = true
 
@@ -77,6 +78,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         window.contentView = rootView
 
         bridge = NativeBridge(window: window, webView: webView)
+        typeOpenWebView.onTypeOpenCommand = { [weak self] command, payload in
+            self?.bridge.sendCommand(command, payload: payload)
+        }
         bridge.onCloseAfterSave = { [weak self] in self?.closeAfterSave() }
         webView.configuration.userContentController.add(bridge, name: "typeopen")
         webView.navigationDelegate = bridge

@@ -827,6 +827,7 @@ export default function App() {
               readOnly={readOnly}
               sourceMode={sourceMode}
               spellCheck={preferences.spellCheck}
+              onSlashCommand={insertSnippet}
               imageUpload={uploadImage}
               imagePreview={previewImage}
               toolbarVisible={preferences.toolbar}
