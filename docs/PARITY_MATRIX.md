@@ -24,11 +24,11 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Auto-pair brackets / quotes | static editor preferences | Implemented | Optional rich-text pairing for `()`, `[]`, `{}`, single and double quotes; typing an existing closer advances the caret and Backspace removes an empty pair. Apostrophes after word characters are left literal. Source Mode and fenced code use CodeMirror's built-in close-bracket behavior |
 | Source Mode list continuation | static editor behavior | Implemented | Enter continues bullet and ordered markers, increments ordered numbers, starts new task items unchecked, and exits an empty list item. The extension is limited to parsed Markdown `ListItem` nodes and does not run inside fenced or indented code |
 | Headings H1-H6 | static Paragraph menu | Implemented | Insert commands and toolbar block type |
-| Heading level / indent / outdent | static Paragraph menu | Partial | Heading promotion/demotion uses MDXEditor Realm block conversion; indent/outdent use Lexical list commands and intentionally apply only to list items |
+| Heading level / indent / outdent | static Paragraph menu | Partial | Heading promotion/demotion uses MDXEditor Realm block conversion. Indent/outdent route to focused CodeMirror selections/blocks first and otherwise use Lexical list commands; arbitrary rich paragraphs are not assigned non-portable indentation |
 | Quote / lists / tasks | static Paragraph menu | Implemented | Live editor plugins plus insertion commands |
 | Task Status | static Paragraph menu | Implemented | Uses the public `@lexical/list` `ListItemNode` API to toggle the current checklist item's checked state; normal list items are left unchanged |
 | Tables | static NIB/menu controls | Implemented | Live table plugin, insertion and editing controls supplied by editor engine |
-| Fenced code | static menu/preferences | Implemented | CodeMirror provides line numbers, Tab indentation, wrapping and per-block language selection; TypeOpen preferences configure the default language for newly inserted fences. Remember-last-language behavior is not claimed |
+| Fenced code | static menu/preferences | Implemented | CodeMirror provides line numbers, Tab/Shift-Tab indentation, wrapping and per-block language selection; TypeOpen bridges native Paragraph Indent/Outdent to the focused CodeMirror and preferences configure the default language for newly inserted fences. Remember-last-language behavior is not claimed |
 | Inline/block math | static menu/preferences | Implemented | KaTeX; double-click formula to edit TeX |
 | Mermaid diagrams | static diagram preferences | Implemented | Live preview in fenced `mermaid` blocks |
 | Sequence diagrams | static diagram preferences | Implemented | `sequence` fences translated to Mermaid sequence syntax where possible |
@@ -70,7 +70,7 @@ These are intentionally tracked even when they are not part of the current imple
 | Priority | Reference capability still worth closing | TypeOpen state / intended boundary |
 | --- | --- | --- |
 | Next | Markdown-marker pairing, smart punctuation and configurable whitespace/line-break behavior | Bracket/quote auto-pairing is implemented. Remaining text transformations must stay conservative so they do not duplicate Markdown shortcuts or silently change persisted Markdown |
-| Next | Code tools: remember-last-language and richer selection/block indentation controls | CodeMirror already provides line numbers, Tab indentation and wrapping, and TypeOpen now configures the default language for newly inserted fences |
+| Later | Remember the last code language used during a session | TypeOpen intentionally keeps the persisted default code language authoritative. A future last-used value should be session-only rather than silently rewriting that explicit preference |
 | Next | Flat outline mode and configurable chapter level | Hierarchical collapse/expand, Expand All / Collapse All and active-heading reveal are implemented; alternate flat/chapter-level presentation remains |
 | Next | Session restore for clean files/folders and stronger recovery/version workflows | Unsaved buffers recover safely today; persisted path authority is deliberately not restored implicitly |
 | Later | Multi-window / Open in New Window | Multi-tab model exists; the native app still centers on one main editing window |
