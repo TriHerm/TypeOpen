@@ -55,6 +55,7 @@ import { typeOpenMathPlugin } from './mathPlugin'
 import { typeOpenReferenceLinkPlugin } from './referenceLinkPlugin'
 import { typeOpenTocPlugin } from './tocPlugin'
 import { typeOpenTypingErgonomicsPlugin } from './typingErgonomicsPlugin'
+import { typeOpenRichMarkdownShortcutsPlugin } from './richMarkdownShortcutsPlugin'
 import { TYPEOPEN_SOURCE_TYPING } from './sourceTyping'
 import { CODE_BLOCK_LANGUAGES, normalizeCodeBlockLanguage } from '../lib/codeLanguages'
 import { filterSlashCommands, isRootEditableSelection, parseSlashQuery, type SlashCommand } from './slashCommands'
@@ -151,6 +152,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     typeOpenMathPlugin(),
     typeOpenTocPlugin(),
     typeOpenTypingErgonomicsPlugin(autoPairBrackets),
+    typeOpenRichMarkdownShortcutsPlugin(),
     codeBlockPlugin({
       defaultCodeBlockLanguage: normalizeCodeBlockLanguage(defaultCodeLanguage),
       codeBlockEditorDescriptors: [

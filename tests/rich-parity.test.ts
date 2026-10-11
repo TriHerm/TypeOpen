@@ -99,4 +99,13 @@ describe('rich-mode parity extensions', () => {
     expect(sourceText).toContain('<!-- literal -->')
     expect(canonical(ref.current?.getMarkdown() ?? '')).toBe(canonical(source))
   })
+
+  it('keeps highlight and strikethrough markers literal in source mode', async () => {
+    const source = '==highlight== and ~~strike~~\n'
+    const { host, ref } = await mountEditor(source, true)
+    const sourceText = Array.from(host.querySelectorAll('.cm-line')).map((line) => line.textContent ?? '').join('\n')
+
+    expect(sourceText).toContain('==highlight== and ~~strike~~')
+    expect(canonical(ref.current?.getMarkdown() ?? '')).toBe(canonical(source))
+  })
 })

@@ -41,9 +41,9 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | HTML blocks / inline HTML | static Markdown behavior | Implemented | MDXEditor core imports/exports supported HTML elements as rich generic HTML nodes; TypeOpen separately preserves HTML comments losslessly |
 | Table of contents marker | static Paragraph menu | Implemented | TypeOpen-owned MDXEditor/Lexical decorator recognizes a standalone `[TOC]`, renders a live heading outline, and serializes it back to the exact marker; source mode remains Markdown |
 | Footnotes | static Paragraph menu | Implemented | TypeOpen-owned MDXEditor/Lexical nodes use the public GFM micromark/mdast extensions for paired `[^id]` references and `[^id]: text` definitions; canonical paired syntax round-trips through rich mode and remains literal Markdown in source mode. Noncanonical whitespace may normalize |
-| Strong/emphasis/underline/code/strike | static Format menu | Implemented | Toolbar/menu commands |
+| Strong/emphasis/underline/code/strike | static Format menu | Implemented | Toolbar/menu commands. MDXEditor owns rich bold/italic/code typing shortcuts; TypeOpen registers Lexical's omitted `STRIKETHROUGH` transformer so a completed `~~text~~` pair applies rich strike formatting |
 | Clear Format | static Format menu | Implemented | Clears Lexical inline text formats on the active rich-text selection |
-| Highlight / superscript / subscript | static Format menu | Implemented | Uses Lexical text-format commands; MDXEditor has native import/export visitors for highlight plus `<sup>`/`<sub>`, so these formats render and round-trip in rich mode |
+| Highlight / superscript / subscript | static Format menu | Implemented | Uses Lexical text-format commands; MDXEditor has native import/export visitors for highlight plus `<sup>`/`<sub>`, so these formats render and round-trip in rich mode. TypeOpen registers Lexical's public `HIGHLIGHT` shortcut transformer so typing a completed `==text==` pair applies rich highlight formatting |
 | Comment | static Format menu | Implemented | TypeOpen-owned Lexical comment nodes preserve inline and block `<!-- ... -->` source losslessly in rich mode, remain literal in Source mode, and are omitted from exported visible DOM |
 | Copy as Markdown / HTML | static Edit menu | Implemented | Selection/document Markdown and editor HTML copied to clipboard |
 | Paste as plain text | static Edit menu | Implemented | Clipboard text insertion |
@@ -70,7 +70,7 @@ These are intentionally tracked even when they are not part of the current imple
 
 | Priority | Reference capability still worth closing | TypeOpen state / intended boundary |
 | --- | --- | --- |
-| Next | Markdown-marker pairing, smart punctuation and configurable whitespace/line-break behavior | Bracket/quote auto-pairing is implemented. Remaining text transformations must stay conservative so they do not duplicate Markdown shortcuts or silently change persisted Markdown |
+| Next | Smart punctuation and configurable whitespace/line-break behavior | Bracket/quote auto-pairing is implemented. MDXEditor owns bold/italic/code/link Markdown shortcuts, while TypeOpen adds only its omitted highlight/strikethrough transformers. Markdown delimiter auto-pairing remains deliberately deferred because it would overlap those transforms; future punctuation/whitespace changes must be opt-in/conservative so persisted Markdown is not silently rewritten |
 | Later | Remember the last code language used during a session | TypeOpen intentionally keeps the persisted default code language authoritative. A future last-used value should be session-only rather than silently rewriting that explicit preference |
 | Later | Folder-session hints and stronger recovery/version workflows | Clean saved tabs now restore explicitly after native identity revalidation. Folder grants remain deliberately non-persistent; any future folder hint must still require a normal user-authorized Open Folder flow |
 | Later | Multi-window / Open in New Window | Multi-tab model exists; the native app still centers on one main editing window |
