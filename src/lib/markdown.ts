@@ -263,6 +263,31 @@ function outlineHtml(items: OutlineItem[]) {
     .join('')}</ul></nav>`
 }
 
+const GITHUB_ALERT_EXPORT_PATTERN = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\r?\n|$)/
+
+function decorateGitHubAlerts(doc: Document) {
+  for (const blockquote of Array.from(doc.querySelectorAll('blockquote'))) {
+    const firstParagraph = blockquote.firstElementChild
+    if (!firstParagraph || firstParagraph.tagName !== 'P') continue
+    const firstText = firstParagraph?.firstChild
+    if (!firstText || firstText.nodeType !== Node.TEXT_NODE) continue
+    const match = GITHUB_ALERT_EXPORT_PATTERN.exec(firstText.textContent || '')
+    if (!match) continue
+
+    const type = match[1]
+    firstText.textContent = (firstText.textContent || '').slice(match[0].length)
+    if (!firstText.textContent) firstText.remove()
+    if (!firstParagraph.textContent?.trim() && firstParagraph.children.length === 0 && blockquote.children.length > 1) firstParagraph.remove()
+
+    blockquote.classList.add('typeopen-github-alert', `typeopen-github-alert-${type.toLocaleLowerCase()}`)
+    blockquote.setAttribute('data-alert-type', type)
+    const label = doc.createElement('strong')
+    label.className = 'typeopen-github-alert-label'
+    label.textContent = type[0] + type.slice(1).toLocaleLowerCase()
+    blockquote.prepend(label)
+  }
+}
+
 export async function createExportHtml(markdown: string, options: ExportOptions = {}): Promise<string> {
   const protectedMath = protectMath(markdown)
   let body = await marked.parse(protectedMath.markdown, { gfm: true, breaks: false })
@@ -274,6 +299,7 @@ export async function createExportHtml(markdown: string, options: ExportOptions 
   headings.forEach((heading, index) => {
     if (outline[index]) heading.id = outline[index].slug
   })
+  decorateGitHubAlerts(doc)
 
   mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: options.theme === 'dark' ? 'dark' : 'default' })
   const diagramNodes = Array.from(doc.querySelectorAll('pre > code.language-mermaid, pre > code.language-sequence, pre > code.language-flow, pre > code.language-flowchart'))
@@ -318,7 +344,7 @@ export async function createExportHtml(markdown: string, options: ExportOptions 
 <title>${title}</title>
 <style>
 :root{color-scheme:${dark ? 'dark' : 'light'};font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:${dark ? '#171717' : '#fff'};color:${dark ? '#e9e9e9' : '#242424'}}
-body{margin:0;padding:48px 28px;line-height:1.65}.typeopen-export-layout{max-width:${maxWidth + (options.includeOutline ? 260 : 0)}px;margin:0 auto;display:flex;gap:44px;align-items:flex-start}main{max-width:${maxWidth}px;min-width:0;flex:1}h1,h2,h3,h4,h5,h6{line-height:1.25;margin:1.5em 0 .6em}h1{font-size:2.1rem;border-bottom:1px solid ${dark ? '#333' : '#e4e4e4'};padding-bottom:.35em}h2{font-size:1.55rem}h3{font-size:1.28rem}a{color:${dark ? '#7bb7ff' : '#1769aa'}}blockquote{margin:1.2em 0;padding:.2em 1em;border-left:3px solid ${dark ? '#555' : '#ccc'};color:${dark ? '#bbb' : '#5c5c5c'}}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:${dark ? '#262626' : '#f4f4f4'};padding:.15em .35em;border-radius:4px}pre{overflow:auto;background:${dark ? '#111' : '#f6f7f8'};padding:16px;border-radius:7px}pre code{background:none;padding:0}table{border-collapse:collapse;width:100%;margin:1.3em 0}th,td{border:1px solid ${dark ? '#444' : '#d8d8d8'};padding:.55em .75em}th{background:${dark ? '#242424' : '#f6f6f6'}}img,svg{max-width:100%;height:auto}.typeopen-math-block{text-align:center;overflow:auto;margin:1.4em 0}.typeopen-diagram{text-align:center;margin:1.5em 0}.typeopen-export-outline{width:220px;position:sticky;top:24px;font-size:.9rem}.typeopen-export-outline ul{list-style:none;padding:0}.typeopen-export-outline li{margin:.35em 0}.typeopen-export-outline .level-2{padding-left:12px}.typeopen-export-outline .level-3,.typeopen-export-outline .level-4,.typeopen-export-outline .level-5,.typeopen-export-outline .level-6{padding-left:24px}.typeopen-export-outline a{text-decoration:none;color:inherit}@media(max-width:900px){.typeopen-export-outline{display:none}.typeopen-export-layout{display:block}}@media print{body{padding:0}.typeopen-export-outline{display:none}}
+body{margin:0;padding:48px 28px;line-height:1.65}.typeopen-export-layout{max-width:${maxWidth + (options.includeOutline ? 260 : 0)}px;margin:0 auto;display:flex;gap:44px;align-items:flex-start}main{max-width:${maxWidth}px;min-width:0;flex:1}h1,h2,h3,h4,h5,h6{line-height:1.25;margin:1.5em 0 .6em}h1{font-size:2.1rem;border-bottom:1px solid ${dark ? '#333' : '#e4e4e4'};padding-bottom:.35em}h2{font-size:1.55rem}h3{font-size:1.28rem}a{color:${dark ? '#7bb7ff' : '#1769aa'}}blockquote{margin:1.2em 0;padding:.2em 1em;border-left:3px solid ${dark ? '#555' : '#ccc'};color:${dark ? '#bbb' : '#5c5c5c'}}.typeopen-github-alert{padding:.65em 1em .75em;background:${dark ? '#202020' : '#f7f7f7'};border-left-color:${dark ? '#7bb7ff' : '#1769aa'};color:inherit;border-radius:0 6px 6px 0}.typeopen-github-alert-label{display:block;margin-bottom:.35em;color:${dark ? '#7bb7ff' : '#1769aa'};font-size:.78em;letter-spacing:.045em;text-transform:uppercase}.typeopen-github-alert>p:first-of-type{margin-top:0}.typeopen-github-alert>p:last-child{margin-bottom:0}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:${dark ? '#262626' : '#f4f4f4'};padding:.15em .35em;border-radius:4px}pre{overflow:auto;background:${dark ? '#111' : '#f6f7f8'};padding:16px;border-radius:7px}pre code{background:none;padding:0}table{border-collapse:collapse;width:100%;margin:1.3em 0}th,td{border:1px solid ${dark ? '#444' : '#d8d8d8'};padding:.55em .75em}th{background:${dark ? '#242424' : '#f6f6f6'}}img,svg{max-width:100%;height:auto}.typeopen-math-block{text-align:center;overflow:auto;margin:1.4em 0}.typeopen-diagram{text-align:center;margin:1.5em 0}.typeopen-export-outline{width:220px;position:sticky;top:24px;font-size:.9rem}.typeopen-export-outline ul{list-style:none;padding:0}.typeopen-export-outline li{margin:.35em 0}.typeopen-export-outline .level-2{padding-left:12px}.typeopen-export-outline .level-3,.typeopen-export-outline .level-4,.typeopen-export-outline .level-5,.typeopen-export-outline .level-6{padding-left:24px}.typeopen-export-outline a{text-decoration:none;color:inherit}@media(max-width:900px){.typeopen-export-outline{display:none}.typeopen-export-layout{display:block}}@media print{body{padding:0}.typeopen-export-outline{display:none}}
 </style>
 </head>
 <body><div class="typeopen-export-layout">${outlineMarkup}<main>${cleanBody.replace(/^<main>|<\/main>$/g, '')}</main></div></body>

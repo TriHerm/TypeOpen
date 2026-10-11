@@ -312,6 +312,10 @@ button { -webkit-app-region: no-drag; }
 .typeopen-footnote-definition::before { content: '[^' attr(data-footnote-label) ']:'; position: absolute; left: 0; top: 0; color: var(--muted); font-size: .9em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .typeopen-footnote-definition > p:first-child { margin-top: 0; }
 .typeopen-footnote-definition > p:last-child { margin-bottom: 0; }
+.typeopen-github-alert { margin: 1em 0; padding: 10px 14px 11px; border-left: 3px solid var(--accent); border-radius: 0 5px 5px 0; background: var(--surface); }
+.typeopen-github-alert::before { content: attr(data-alert-label); display: block; margin-bottom: 5px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .045em; text-transform: uppercase; }
+.typeopen-github-alert > :first-child { margin-top: 0; }
+.typeopen-github-alert > :last-child { margin-bottom: 0; }
 .typeopen-html-comment { color: var(--muted); background: color-mix(in srgb, var(--surface-2) 72%, transparent); border: 1px dashed var(--border); border-radius: 4px; font: .82em/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; opacity: .78; }
 .typeopen-html-comment.inline { display: inline; padding: .08em .3em; margin: 0 .12em; }
 .typeopen-html-comment.block { display: block; padding: .42em .6em; margin: .8em 0; white-space: pre-wrap; }
