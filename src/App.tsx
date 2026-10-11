@@ -13,7 +13,7 @@ import { createExportHtml, documentTitle, extractOutline, getDocumentStats, type
 import { replaceAllSearch, searchText } from './lib/search'
 import { buildRecoverySnapshot, parseRecoverySnapshot } from './lib/recovery'
 import { buildSessionIntent } from './lib/sessionRestore'
-import { codeFenceSnippet, normalizeCodeBlockLanguage } from './lib/codeLanguages'
+import { codeFenceSnippet, effectiveCodeBlockLanguage, normalizeCodeBlockLanguage, type CodeBlockLanguage } from './lib/codeLanguages'
 import { normalizeOutlineMaxLevel, normalizeOutlineMode } from './lib/outlinePreferences'
 
 const EMPTY_DOCUMENT = ''
@@ -170,6 +170,7 @@ export default function App() {
   const [preferencesVisible, setPreferencesVisible] = useState(false)
   const [aboutVisible, setAboutVisible] = useState(false)
   const [preferences, setPreferences] = useState<TypeOpenPreferences>(() => loadPreferences())
+  const [lastCodeLanguage, setLastCodeLanguage] = useState<CodeBlockLanguage | null>(null)
   const [pageSetupVisible, setPageSetupVisible] = useState(false)
   const [pageSetup, setPageSetup] = useState<PageSetupState>(() => loadPageSetup())
   const [activeOutlineSlug, setActiveOutlineSlug] = useState<string | null>(null)
@@ -188,6 +189,7 @@ export default function App() {
   const searchResult = useMemo(() => searchText(markdown, findQuery, { matchCase, wholeWord, regex: regexSearch }), [findQuery, markdown, matchCase, regexSearch, wholeWord])
   const matches = searchResult.matches
   const title = activeDocument ? documentDisplayTitle(activeDocument) : 'Untitled'
+  const effectiveCodeLanguage = effectiveCodeBlockLanguage(lastCodeLanguage, preferences.defaultCodeLanguage)
   const sessionIntent = useMemo(() => buildSessionIntent(documents, activeDocumentId, isDocumentDirty), [activeDocumentId, documents])
 
   const showToast = useCallback((message: string) => {
@@ -760,7 +762,7 @@ export default function App() {
   const insertSnippet = useCallback((kind: string) => {
     const snippets: Record<string, string> = {
       paragraph: '\n', h1: '# Heading', h2: '## Heading', h3: '### Heading', h4: '#### Heading', h5: '##### Heading', h6: '###### Heading',
-      quote: '> Quote', 'code-fence': codeFenceSnippet(preferences.defaultCodeLanguage), 'math-block': '$$\nE = mc^2\n$$', 'ordered-list': '1. Item', 'unordered-list': '- Item', 'task-list': '- [ ] Task',
+      quote: '> Quote', 'code-fence': codeFenceSnippet(effectiveCodeLanguage), 'math-block': '$$\nE = mc^2\n$$', 'ordered-list': '1. Item', 'unordered-list': '- Item', 'task-list': '- [ ] Task',
       table: '| Column 1 | Column 2 |\n| --- | --- |\n| Value | Value |', toc: '\n\n[TOC]\n\n', frontmatter: '---\ntitle: Untitled\n---\n', hr: '---',
       link: '[link](https://example.com)', image: '![alt text](assets/image.png)', 'inline-math': '$E = mc^2$', footnote: 'Text[^1]\n\n[^1]: Footnote',
       'alert-note': '> [!NOTE]\n> Note', 'alert-tip': '> [!TIP]\n> Tip', 'alert-important': '> [!IMPORTANT]\n> Important',
@@ -771,7 +773,7 @@ export default function App() {
       editorRef.current?.insertMarkdown(snippet)
       editorRef.current?.focus()
     }
-  }, [preferences.defaultCodeLanguage])
+  }, [effectiveCodeLanguage])
 
   const navigateMatch = useCallback((delta: number) => {
     if (!matches.length) return
@@ -1148,7 +1150,8 @@ export default function App() {
               imagePreview={previewImage}
               toolbarVisible={preferences.toolbar}
               autoPairBrackets={preferences.autoPairBrackets}
-              defaultCodeLanguage={preferences.defaultCodeLanguage}
+              defaultCodeLanguage={effectiveCodeLanguage}
+              onCodeLanguageUsed={setLastCodeLanguage}
             />
           </div>
           {preferences.statusBar && (

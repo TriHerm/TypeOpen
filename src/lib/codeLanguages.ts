@@ -25,6 +25,13 @@ export function normalizeCodeBlockLanguage(value: string | null | undefined): Co
   return value && Object.prototype.hasOwnProperty.call(CODE_BLOCK_LANGUAGES, value) ? value as CodeBlockLanguage : 'text'
 }
 
+export function effectiveCodeBlockLanguage(
+  lastUsed: CodeBlockLanguage | null | undefined,
+  persistedDefault: string | null | undefined
+): CodeBlockLanguage {
+  return lastUsed ?? normalizeCodeBlockLanguage(persistedDefault)
+}
+
 export function codeFenceSnippet(language: string | null | undefined, content = 'code'): string {
   return `\`\`\`${normalizeCodeBlockLanguage(language)}\n${content}\n\`\`\``
 }

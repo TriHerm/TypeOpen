@@ -28,7 +28,7 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Quote / lists / tasks | static Paragraph menu | Implemented | Live editor plugins plus insertion commands |
 | Task Status | static Paragraph menu | Implemented | Uses the public `@lexical/list` `ListItemNode` API to toggle the current checklist item's checked state; normal list items are left unchanged |
 | Tables | static NIB/menu controls | Implemented | Live table plugin, insertion and editing controls supplied by editor engine |
-| Fenced code | static menu/preferences | Implemented | CodeMirror provides line numbers, Tab/Shift-Tab indentation, wrapping and per-block language selection; TypeOpen bridges native Paragraph Indent/Outdent to the focused CodeMirror and preferences configure the default language for newly inserted fences. Remember-last-language behavior is not claimed |
+| Fenced code | static menu/preferences | Implemented | CodeMirror provides line numbers, Tab/Shift-Tab indentation, wrapping and per-block language selection; TypeOpen bridges native Paragraph Indent/Outdent to the focused CodeMirror. The persisted preference supplies the initial default, while an explicit language change becomes the session-only default for newly inserted blocks until restart |
 | Inline/block math | static menu/preferences | Implemented | KaTeX; double-click formula to edit TeX |
 | Mermaid diagrams | static diagram preferences | Implemented | Live preview in fenced `mermaid` blocks |
 | Sequence diagrams | static diagram preferences | Implemented | `sequence` fences translated to Mermaid sequence syntax where possible |
@@ -72,7 +72,6 @@ These are intentionally tracked even when they are not part of the current imple
 | Priority | Reference capability still worth closing | TypeOpen state / intended boundary |
 | --- | --- | --- |
 | Next | Smart punctuation and configurable outer-whitespace behavior | Explicit hard-break semantics are now preserved. MDXEditor still trims outer document whitespace during root import/export even with `trim={false}`. Smart punctuation has no current engine owner and would rewrite persisted Markdown, so either behavior needs an explicit conservative contract before implementation |
-| Later | Remember the last code language used during a session | TypeOpen intentionally keeps the persisted default code language authoritative. A future last-used value should be session-only rather than silently rewriting that explicit preference |
 | Later | Folder-session hints and stronger recovery/version workflows | Clean saved tabs now restore explicitly after native identity revalidation. Folder grants remain deliberately non-persistent; any future folder hint must still require a normal user-authorized Open Folder flow |
 | Later | Multi-window / Open in New Window | Multi-tab model exists; the native app still centers on one main editing window |
 | Later | Advanced file library: hidden-file toggle, configurable glob patterns, pinned/recent locations, grouping and creation-date sorting | Basic native management and name/modified sorting exist |

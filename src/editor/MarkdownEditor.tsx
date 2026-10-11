@@ -46,6 +46,7 @@ import { $createHeadingNode, type HeadingTagType } from '@lexical/rich-text'
 import { $getSelection, $isRangeSelection, $isTextNode, FORMAT_TEXT_COMMAND, INDENT_CONTENT_COMMAND, OUTDENT_CONTENT_COMMAND, SET_TEXT_FORMAT_COMMAND, type LexicalNode, type TextFormatType } from 'lexical'
 import { tags } from '@lezer/highlight'
 import { DiagramCodeBlockEditor } from './DiagramCodeBlockEditor'
+import { typeOpenCodeLanguageSessionPlugin } from './codeLanguageSessionPlugin'
 import { SlashCommandMenu } from './SlashCommandMenu'
 import { createHtmlCommentToken, decodeHtmlCommentsFromRichEditor, encodeHtmlCommentsForRichEditor } from './commentEncoding'
 import { typeOpenCommentPlugin } from './commentPlugin'
@@ -58,7 +59,7 @@ import { typeOpenTocPlugin } from './tocPlugin'
 import { typeOpenTypingErgonomicsPlugin } from './typingErgonomicsPlugin'
 import { typeOpenRichMarkdownShortcutsPlugin } from './richMarkdownShortcutsPlugin'
 import { TYPEOPEN_SOURCE_TYPING } from './sourceTyping'
-import { CODE_BLOCK_LANGUAGES, normalizeCodeBlockLanguage } from '../lib/codeLanguages'
+import { CODE_BLOCK_LANGUAGES, normalizeCodeBlockLanguage, type CodeBlockLanguage } from '../lib/codeLanguages'
 import { filterSlashCommands, isRootEditableSelection, parseSlashQuery, type SlashCommand } from './slashCommands'
 
 type EditorRealm = Parameters<NonNullable<RealmPlugin['postInit']>>[0]
@@ -102,6 +103,7 @@ interface MarkdownEditorProps {
   toolbarVisible?: boolean
   autoPairBrackets?: boolean
   defaultCodeLanguage?: string
+  onCodeLanguageUsed?: (language: CodeBlockLanguage) => void
   onSlashCommand?: (insertKind: string) => void
 }
 
@@ -124,6 +126,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   toolbarVisible = false,
   autoPairBrackets = true,
   defaultCodeLanguage = 'text',
+  onCodeLanguageUsed,
   onSlashCommand
 }, forwardedRef) {
   const editorRef = useRef<MDXEditorMethods>(null)
@@ -155,6 +158,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     typeOpenTocPlugin(),
     typeOpenTypingErgonomicsPlugin(autoPairBrackets),
     typeOpenRichMarkdownShortcutsPlugin(),
+    ...(onCodeLanguageUsed ? [typeOpenCodeLanguageSessionPlugin(onCodeLanguageUsed)] : []),
     codeBlockPlugin({
       defaultCodeBlockLanguage: normalizeCodeBlockLanguage(defaultCodeLanguage),
       codeBlockEditorDescriptors: [
@@ -196,7 +200,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         </DiffSourceToggleWrapper>
       )
     })] : [])
-  ], [autoPairBrackets, commandBridgePlugin, commentToken, defaultCodeLanguage, imagePreview, imageUpload, sourceMode, toolbarVisible])
+  ], [autoPairBrackets, commandBridgePlugin, commentToken, defaultCodeLanguage, imagePreview, imageUpload, onCodeLanguageUsed, sourceMode, toolbarVisible])
 
   const getMutableRichEditor = () => {
     const realm = realmRef.current
