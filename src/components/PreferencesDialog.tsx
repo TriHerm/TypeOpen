@@ -9,6 +9,7 @@ export interface TypeOpenPreferences {
   contentWidth: number
   spellCheck: boolean
   autosave: boolean
+  autoPairBrackets: boolean
   statusBar: boolean
   toolbar: boolean
   sidebarDefault: boolean
@@ -55,6 +56,7 @@ export function PreferencesDialog({ visible, preferences, onChange, onClose, onC
             </>}
             {tab === 'editor' && <>
               <label className="switch-row"><input type="checkbox" checked={preferences.spellCheck} onChange={(event) => patch({ spellCheck: event.target.checked })} /> Check spelling while typing</label>
+              <label className="switch-row"><input type="checkbox" checked={preferences.autoPairBrackets} onChange={(event) => patch({ autoPairBrackets: event.target.checked })} /> Auto-pair brackets and quotes</label>
               <p className="preference-note">Markdown shortcuts, tables, code fences, math, links and images are enabled in the live editor.</p>
             </>}
             {tab === 'files' && <>
