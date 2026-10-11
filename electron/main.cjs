@@ -203,11 +203,15 @@ async function readDocumentFromSnapshot(filePath, expectedSnapshot) {
   return data.toString('utf8')
 }
 
-async function listDirectory(rootPath, depth = 0) {
-  if (depth > 14) return []
+async function listDirectory(rootPath, depth = 0, showHiddenFiles = false, authorizedGrant = pathGrants.getFolderGrantToken()) {
+  if (depth > 14 || !authorizedGrant || !pathGrants.isFolderGrantCurrent(authorizedGrant)) return []
+  const authorizedRootRealPath = authorizedGrant.realPath
+  const rootSnapshot = pathSnapshot(rootPath, { rejectSymbolicLink: depth > 0 })
+  if (!rootSnapshot || rootSnapshot.fileType !== fs.constants.S_IFDIR || !isInsideOrEqual(rootSnapshot.realPath, authorizedRootRealPath)) return []
   const entries = await fsp.readdir(rootPath, { withFileTypes: true })
+  if (!pathGrants.isFolderGrantCurrent(authorizedGrant)) return []
   const visible = entries
-    .filter((entry) => !entry.name.startsWith('.') && entry.name !== 'node_modules' && entry.name !== 'Library')
+    .filter((entry) => (showHiddenFiles || !entry.name.startsWith('.')) && entry.name !== 'node_modules' && entry.name !== 'Library')
     .sort((a, b) => {
       if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1
       return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
@@ -215,8 +219,13 @@ async function listDirectory(rootPath, depth = 0) {
 
   const result = []
   for (const entry of visible) {
+    if (!pathGrants.isFolderGrantCurrent(authorizedGrant)) return []
+    if (entry.isSymbolicLink()) continue
     const absolutePath = path.join(rootPath, entry.name)
-    const stat = await fsp.stat(absolutePath).catch(() => null)
+    const snapshot = pathSnapshot(absolutePath, { rejectSymbolicLink: true })
+    if (!snapshot || !isInsideOrEqual(snapshot.realPath, authorizedRootRealPath)) continue
+    const stat = await fsp.lstat(absolutePath).catch(() => null)
+    if (!stat || stat.isSymbolicLink()) continue
     const modifiedAt = stat?.mtimeMs || 0
     if (entry.isDirectory() && isTextBundlePath(absolutePath)) {
       result.push({ type: 'file', name: entry.name, path: absolutePath, modifiedAt })
@@ -226,13 +235,13 @@ async function listDirectory(rootPath, depth = 0) {
         name: entry.name,
         path: absolutePath,
         modifiedAt,
-        children: await listDirectory(absolutePath, depth + 1)
+        children: await listDirectory(absolutePath, depth + 1, showHiddenFiles, authorizedGrant)
       })
     } else if (isEditableDocument(absolutePath) || IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
       result.push({ type: 'file', name: entry.name, path: absolutePath, modifiedAt })
     }
   }
-  return result
+  return pathGrants.isFolderGrantCurrent(authorizedGrant) ? result : []
 }
 
 function createSearchExpression(query, { matchCase = false, wholeWord = false, regex = false } = {}) {
@@ -1277,10 +1286,12 @@ ipcMain.handle('typeopen:read-file', async (event, filePath) => {
     imported: PANDOC_IMPORT_EXTENSIONS.has(path.extname(filePath).toLowerCase())
   }
 })
-ipcMain.handle('typeopen:list-folder', async (event, folderPath) => {
+ipcMain.handle('typeopen:list-folder', async (event, payload) => {
   assertTrustedRenderer(event)
+  const folderPath = typeof payload === 'string' ? payload : payload?.folderPath
+  const showHiddenFiles = typeof payload === 'object' && payload !== null && payload.showHiddenFiles === true
   await assertListableFolderPath(folderPath)
-  return { folderPath, tree: await listDirectory(folderPath) }
+  return { folderPath, tree: await listDirectory(folderPath, 0, showHiddenFiles) }
 })
 ipcMain.handle('typeopen:search-folder', async (event, payload) => {
   assertTrustedRenderer(event)

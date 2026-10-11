@@ -38,7 +38,8 @@ const DEFAULT_PREFS: TypeOpenPreferences = {
   outlineMaxLevel: 6,
   statusBar: true,
   toolbar: false,
-  sidebarDefault: true
+  sidebarDefault: true,
+  showHiddenFiles: false
 }
 
 function loadPageSetup(): PageSetupState {
@@ -255,9 +256,12 @@ export default function App() {
 
   const refreshFolder = useCallback(async (path = folderPath) => {
     if (!path) return
-    const result = await window.typeopen.invoke<{ folderPath: string; tree: TypeOpenTreeNode[] }>('typeopen:list-folder', path)
+    const result = await window.typeopen.invoke<{ folderPath: string; tree: TypeOpenTreeNode[] }>('typeopen:list-folder', {
+      folderPath: path,
+      showHiddenFiles: preferences.showHiddenFiles
+    })
     setFileTree(result.tree)
-  }, [folderPath])
+  }, [folderPath, preferences.showHiddenFiles])
 
   const loadFile = useCallback(async (path: string, content?: string, importedHint?: boolean) => {
     const existing = documentsRef.current.find((document) => document.filePath === path || document.importedFrom === path)
@@ -302,11 +306,14 @@ export default function App() {
   const openFolder = useCallback(async () => {
     const result = await window.typeopen.invoke<{ folderPath: string; tree: TypeOpenTreeNode[] } | null>('typeopen:open-folder')
     if (!result) return
+    const treeResult = preferences.showHiddenFiles
+      ? await window.typeopen.invoke<{ folderPath: string; tree: TypeOpenTreeNode[] }>('typeopen:list-folder', { folderPath: result.folderPath, showHiddenFiles: true })
+      : result
     setFolderPath(result.folderPath)
-    setFileTree(result.tree)
+    setFileTree(treeResult.tree)
     setSidebarVisible(true)
     setSidebarTab('files')
-  }, [])
+  }, [preferences.showHiddenFiles])
 
   const saveDocument = useCallback(async (id: string, saveAs = false, showSavedToast = true, manageBusy = true, persistSession = true) => {
     if (manageBusy) setBusy(true)

@@ -751,7 +751,11 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         case "typeopen:open-folder": return try chooseOpenFolder()
         case "typeopen:choose-theme-css": return try chooseThemeCSS()
         case "typeopen:read-file": return try readGrantedDocument(requireString(payload, "Document path is required."))
-        case "typeopen:list-folder": return try listGrantedFolder(requireString(payload, "Folder path is required."))
+        case "typeopen:list-folder":
+            if let options = payload as? [String: Any], let folderPath = options["folderPath"] as? String {
+                return try listGrantedFolder(folderPath, showHiddenFiles: (options["showHiddenFiles"] as? Bool) == true)
+            }
+            return try listGrantedFolder(requireString(payload, "Folder path is required."))
         case "typeopen:search-folder": return try searchGrantedFolder(payload as? [String: Any] ?? [:])
         case "typeopen:create-entry": return try createFolderEntry(payload: requireDictionary(payload))
         case "typeopen:rename-entry": return try renameFolderEntry(payload: requireDictionary(payload))
@@ -1206,7 +1210,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         ]
     }
 
-    private func listGrantedFolder(_ folderPath: String) throws -> [String: Any] {
+    private func listGrantedFolder(_ folderPath: String, showHiddenFiles: Bool = false) throws -> [String: Any] {
         guard let normalized = normalizedPath(folderPath),
               grants.canListFolder(normalized),
               let before = realPath(normalized),
@@ -1214,7 +1218,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
               grants.canListFolder(normalized) else {
             throw TypeOpenNativeError.message("Folder path has not been granted by the user.")
         }
-        let tree = try listDirectory(normalized)
+        let tree = try listDirectory(normalized, showHiddenFiles: showHiddenFiles)
         guard realPath(normalized) == before,
               grants.canListFolder(normalized),
               nativePathSnapshot(normalized, rejectSymbolicLink: false, requiredType: S_IFDIR) == identityBefore else {
@@ -1223,11 +1227,12 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         return ["folderPath": normalized, "tree": tree]
     }
 
-    private func listDirectory(_ rootPath: String, depth: Int = 0) throws -> [[String: Any]] {
+    private func listDirectory(_ rootPath: String, depth: Int = 0, showHiddenFiles: Bool = false) throws -> [[String: Any]] {
         if depth > 14 { return [] }
         guard let authorizedRoot = grants.getFolderRealPath(), let rootReal = realPath(rootPath), isInsideOrEqual(rootReal, authorizedRoot) else { return [] }
         let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey]
-        let urls = try FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: rootPath), includingPropertiesForKeys: Array(keys), options: [.skipsHiddenFiles])
+        let enumerationOptions: FileManager.DirectoryEnumerationOptions = showHiddenFiles ? [] : [.skipsHiddenFiles]
+        let urls = try FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: rootPath), includingPropertiesForKeys: Array(keys), options: enumerationOptions)
             .filter { $0.lastPathComponent != "node_modules" && $0.lastPathComponent != "Library" }
             .sorted { lhs, rhs in
                 let lv = try? lhs.resourceValues(forKeys: keys)
@@ -1245,7 +1250,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
             if values.isDirectory == true && url.pathExtension.lowercased() == "textbundle" {
                 result.append(["type": "file", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt])
             } else if values.isDirectory == true {
-                result.append(["type": "directory", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt, "children": try listDirectory(url.path, depth: depth + 1)])
+                result.append(["type": "directory", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt, "children": try listDirectory(url.path, depth: depth + 1, showHiddenFiles: showHiddenFiles)])
             } else if isEditableDocument(url.path) || imageMimeTypes[url.pathExtension.lowercased()] != nil {
                 result.append(["type": "file", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt])
             }
