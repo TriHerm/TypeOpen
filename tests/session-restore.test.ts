@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -68,8 +68,10 @@ describe('clean session restore intent', () => {
     expect(originalFile).toBeTruthy()
     expect(originalParent).toBeTruthy()
 
-    await rm(filePath)
-    await writeFile(filePath, '# Replacement')
+    const replacementPath = path.join(root, 'replacement.md')
+    await writeFile(replacementPath, '# Replacement')
+    expect(identity(pathSnapshot(replacementPath, { rejectSymbolicLink: true }))).not.toEqual(originalFile)
+    await rename(replacementPath, filePath)
     expect(identity(pathSnapshot(filePath, { rejectSymbolicLink: true }))).not.toEqual(originalFile)
 
     await rm(filePath)
