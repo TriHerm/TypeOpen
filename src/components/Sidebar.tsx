@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, File, FilePlus2, Folder, FolderOpen, FolderPlus, List, Network, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import { buildOutlineTree, outlineAncestorSlugs, type OutlineItem, type OutlineTreeItem } from '../lib/markdown'
+import type { OutlineMaxLevel, OutlineMode } from '../lib/outlinePreferences'
 
 export type SidebarTab = 'outline' | 'articles' | 'files'
 
@@ -11,6 +12,8 @@ interface SidebarProps {
   outline: OutlineItem[]
   outlineDocumentKey: string
   activeOutlineSlug: string | null
+  outlineMode?: OutlineMode
+  outlineMaxLevel?: OutlineMaxLevel
   fileTree: TypeOpenTreeNode[]
   currentFilePath: string | null
   revealFilePath: string | null
@@ -130,14 +133,26 @@ function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, select
   )
 }
 
-export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey, activeOutlineSlug, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onHeadingClick, onRequestFocusEditor, folderPath, onCreateEntry, onRenameEntry, onTrashEntry, onRefreshFolder }: SidebarProps) {
+export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey, activeOutlineSlug, outlineMode = 'hierarchical', outlineMaxLevel = 6, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onHeadingClick, onRequestFocusEditor, folderPath, onCreateEntry, onRenameEntry, onTrashEntry, onRefreshFolder }: SidebarProps) {
   const sidebarRef = useRef<HTMLElement>(null)
   const outlineRef = useRef<HTMLDivElement>(null)
   const [selectedNode, setSelectedNode] = useState<TypeOpenTreeNode | null>(null)
   const [sortMode, setSortMode] = useState<SortMode>('name-asc')
   const [collapsedOutline, setCollapsedOutline] = useState<Set<string>>(() => new Set())
   const sortedTree = useMemo(() => sortNodes(fileTree, sortMode), [fileTree, sortMode])
-  const outlineTree = useMemo(() => buildOutlineTree(outline), [outline])
+  const fullOutlineTree = useMemo(() => buildOutlineTree(outline), [outline])
+  const visibleOutline = useMemo(() => outline.filter((item) => item.level <= outlineMaxLevel), [outline, outlineMaxLevel])
+  const outlineTree = useMemo(() => buildOutlineTree(visibleOutline), [visibleOutline])
+  const effectiveActiveOutlineSlug = useMemo(() => {
+    if (!activeOutlineSlug) return null
+    if (visibleOutline.some((item) => item.slug === activeOutlineSlug)) return activeOutlineSlug
+    const visibleSlugs = new Set(visibleOutline.map((item) => item.slug))
+    const ancestors = outlineAncestorSlugs(fullOutlineTree, activeOutlineSlug)
+    for (let index = ancestors.length - 1; index >= 0; index -= 1) {
+      if (visibleSlugs.has(ancestors[index])) return ancestors[index]
+    }
+    return null
+  }, [activeOutlineSlug, fullOutlineTree, visibleOutline])
   const articles = useMemo(() => {
     const flattened: TypeOpenTreeNode[] = []
     const visit = (nodes: TypeOpenTreeNode[]) => nodes.forEach((node) => {
@@ -153,8 +168,8 @@ export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey
   }, [outlineDocumentKey])
 
   useEffect(() => {
-    if (!activeOutlineSlug) return
-    const ancestors = outlineAncestorSlugs(outlineTree, activeOutlineSlug)
+    if (outlineMode !== 'hierarchical' || !effectiveActiveOutlineSlug) return
+    const ancestors = outlineAncestorSlugs(outlineTree, effectiveActiveOutlineSlug)
     if (!ancestors.length) return
     setCollapsedOutline((current) => {
       if (!ancestors.some((slug) => current.has(slug))) return current
@@ -162,14 +177,14 @@ export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey
       ancestors.forEach((slug) => next.delete(slug))
       return next
     })
-  }, [activeOutlineSlug, outlineTree])
+  }, [effectiveActiveOutlineSlug, outlineMode, outlineTree])
 
   useEffect(() => {
-    if (!visible || tab !== 'outline' || !activeOutlineSlug) return
+    if (!visible || tab !== 'outline' || !effectiveActiveOutlineSlug) return
     const active = outlineRef.current?.querySelector<HTMLElement>('.outline-row.active')
     if (!active) return
     requestAnimationFrame(() => active.scrollIntoView({ block: 'nearest', behavior: navigationScrollBehavior() }))
-  }, [activeOutlineSlug, collapsedOutline, tab, visible])
+  }, [collapsedOutline, effectiveActiveOutlineSlug, outlineMaxLevel, outlineMode, tab, visible])
 
   useEffect(() => {
     if (visible || !sidebarRef.current?.contains(document.activeElement)) return
@@ -187,17 +202,18 @@ export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey
         {tab === 'outline' && (
           <div className="outline-list sidebar-panel" ref={outlineRef}>
             {outline.length === 0 && <div className="sidebar-empty">No headings</div>}
-            {outline.length > 0 && (
+            {outline.length > 0 && visibleOutline.length === 0 && <div className="sidebar-empty">No headings at this outline depth</div>}
+            {outlineMode === 'hierarchical' && visibleOutline.length > 0 && (
               <div className="outline-toolbar" aria-label="Outline controls">
                 <button onClick={() => setCollapsedOutline(new Set())}>Expand all</button>
                 <button onClick={() => setCollapsedOutline(new Set(collapsibleOutlineSlugs(outlineTree)))}>Collapse all</button>
               </div>
             )}
-            {outlineTree.map((item) => (
+            {outlineMode === 'hierarchical' ? outlineTree.map((item) => (
               <OutlineNode
                 key={item.slug}
                 item={item}
-                activeOutlineSlug={activeOutlineSlug}
+                activeOutlineSlug={effectiveActiveOutlineSlug}
                 collapsed={collapsedOutline}
                 onToggle={(slug) => setCollapsedOutline((current) => {
                   const next = new Set(current)
@@ -207,6 +223,10 @@ export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey
                 })}
                 onHeadingClick={onHeadingClick}
               />
+            )) : visibleOutline.map((item) => (
+              <button key={item.slug} className={`outline-row outline-row-flat level-${item.level} ${effectiveActiveOutlineSlug === item.slug ? 'active' : ''}`} onClick={() => onHeadingClick(item)} title={`Line ${item.line}`}>
+                {item.text}
+              </button>
             ))}
           </div>
         )}

@@ -13,6 +13,7 @@ import { createExportHtml, documentTitle, extractOutline, getDocumentStats, type
 import { replaceAllSearch, searchText } from './lib/search'
 import { buildRecoverySnapshot, parseRecoverySnapshot } from './lib/recovery'
 import { codeFenceSnippet, normalizeCodeBlockLanguage } from './lib/codeLanguages'
+import { normalizeOutlineMaxLevel, normalizeOutlineMode } from './lib/outlinePreferences'
 
 const EMPTY_DOCUMENT = ''
 const PREF_KEY = 'typeopen.preferences.v1'
@@ -32,6 +33,8 @@ const DEFAULT_PREFS: TypeOpenPreferences = {
   autosave: false,
   autoPairBrackets: true,
   defaultCodeLanguage: 'text',
+  outlineMode: 'hierarchical',
+  outlineMaxLevel: 6,
   statusBar: true,
   toolbar: false,
   sidebarDefault: true
@@ -51,7 +54,13 @@ function loadPreferences(): TypeOpenPreferences {
     const raw = localStorage.getItem(PREF_KEY)
     if (!raw) return DEFAULT_PREFS
     const parsed = JSON.parse(raw)
-    return { ...DEFAULT_PREFS, ...parsed, defaultCodeLanguage: normalizeCodeBlockLanguage(parsed?.defaultCodeLanguage) }
+    return {
+      ...DEFAULT_PREFS,
+      ...parsed,
+      defaultCodeLanguage: normalizeCodeBlockLanguage(parsed?.defaultCodeLanguage),
+      outlineMode: normalizeOutlineMode(parsed?.outlineMode),
+      outlineMaxLevel: normalizeOutlineMaxLevel(parsed?.outlineMaxLevel)
+    }
   } catch {
     return DEFAULT_PREFS
   }
@@ -1008,7 +1017,7 @@ export default function App() {
         <button className="document-tab-add" title="New Tab" aria-label="New Tab" onClick={newDocument}><Plus size={14} /></button>
       </div>
       <div className="workspace">
-        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} outlineDocumentKey={activeDocumentId} activeOutlineSlug={activeOutlineSlug} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onHeadingClick={scrollToHeading} onRequestFocusEditor={() => editorRef.current?.focus()} folderPath={folderPath} onCreateEntry={beginCreateFolderEntry} onRenameEntry={beginRenameFolderEntry} onTrashEntry={(node) => void trashFolderEntry(node)} onRefreshFolder={() => { if (folderPath) void refreshFolder(folderPath) }} />
+        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} outlineDocumentKey={activeDocumentId} activeOutlineSlug={activeOutlineSlug} outlineMode={preferences.outlineMode} outlineMaxLevel={preferences.outlineMaxLevel} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onHeadingClick={scrollToHeading} onRequestFocusEditor={() => editorRef.current?.focus()} folderPath={folderPath} onCreateEntry={beginCreateFolderEntry} onRenameEntry={beginRenameFolderEntry} onTrashEntry={(node) => void trashFolderEntry(node)} onRefreshFolder={() => { if (folderPath) void refreshFolder(folderPath) }} />
         <main className="document-workspace">
           <FindBar
             visible={findVisible}

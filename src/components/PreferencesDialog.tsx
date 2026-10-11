@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { CODE_BLOCK_LANGUAGES, type CodeBlockLanguage } from '../lib/codeLanguages'
+import type { OutlineMaxLevel, OutlineMode } from '../lib/outlinePreferences'
 
 export interface TypeOpenPreferences {
   theme: 'system' | 'light' | 'dark'
@@ -12,6 +13,8 @@ export interface TypeOpenPreferences {
   autosave: boolean
   autoPairBrackets: boolean
   defaultCodeLanguage: CodeBlockLanguage
+  outlineMode: OutlineMode
+  outlineMaxLevel: OutlineMaxLevel
   statusBar: boolean
   toolbar: boolean
   sidebarDefault: boolean
@@ -43,6 +46,8 @@ export function PreferencesDialog({ visible, preferences, onChange, onClose, onC
           <div className="preference-pane">
             {tab === 'general' && <>
               <label className="switch-row"><input type="checkbox" checked={preferences.sidebarDefault} onChange={(event) => patch({ sidebarDefault: event.target.checked })} /> Show sidebar for new windows</label>
+              <label>Outline layout<select value={preferences.outlineMode} onChange={(event) => patch({ outlineMode: event.target.value as OutlineMode })}><option value="hierarchical">Hierarchical</option><option value="flat">Flat</option></select></label>
+              <label>Outline heading depth<select value={preferences.outlineMaxLevel} onChange={(event) => patch({ outlineMaxLevel: Number(event.target.value) as OutlineMaxLevel })}>{([1, 2, 3, 4, 5, 6] as const).map((level) => <option key={level} value={level}>{level === 1 ? 'H1 only' : `H1–H${level}`}</option>)}</select></label>
               <label className="switch-row"><input type="checkbox" checked={preferences.statusBar} onChange={(event) => patch({ statusBar: event.target.checked })} /> Show status bar</label>
               <label className="switch-row"><input type="checkbox" checked={preferences.toolbar} onChange={(event) => patch({ toolbar: event.target.checked })} /> Show editor toolbar</label>
             </>}
