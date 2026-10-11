@@ -1,28 +1,6 @@
 import AppKit
 import WebKit
 
-private final class TypeOpenWindow: NSWindow {
-    // Mirrors the renderer's 42 pt titlebar row. The leading 240 pt contain
-    // the native traffic lights plus TypeOpen's WebKit toolbar buttons, so
-    // leave that area to normal hit testing and only drag the inert portion.
-    private let rendererTitlebarHeight: CGFloat = 42
-    private let interactiveLeadingWidth: CGFloat = 240
-
-    override func sendEvent(_ event: NSEvent) {
-        if event.type == .leftMouseDown,
-           event.clickCount == 1,
-           let contentView {
-            let point = contentView.convert(event.locationInWindow, from: nil)
-            let isRendererTitlebar = point.y >= contentView.bounds.maxY - rendererTitlebarHeight
-            if isRendererTitlebar && point.x >= interactiveLeadingWidth {
-                performDrag(with: event)
-                return
-            }
-        }
-        super.sendEvent(event)
-    }
-}
-
 @main
 @MainActor
 struct TypeOpenMain {
@@ -61,12 +39,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         rendererSchemeHandler = RendererSchemeHandler(rendererRoot: rendererRoot)
         configuration.setURLSchemeHandler(rendererSchemeHandler, forURLScheme: RendererSchemeHandler.scheme)
 
-        webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 1180, height: 820), configuration: configuration)
+        let contentFrame = NSRect(x: 0, y: 0, width: 1180, height: 820)
+        let rootView = NSView(frame: contentFrame)
+
+        webView = WKWebView(frame: rootView.bounds, configuration: configuration)
         webView.autoresizingMask = [.width, .height]
         webView.allowsMagnification = true
 
-        window = TypeOpenWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1180, height: 820),
+        window = NSWindow(
+            contentRect: contentFrame,
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -81,7 +62,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         window.isMovableByWindowBackground = false
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.contentView = webView
+
+        rootView.addSubview(webView)
+
+        // The renderer titlebar is 42 pt tall. The leading 240 pt contain the
+        // native traffic lights and TypeOpen toolbar buttons, so leave that
+        // region to WebKit and put an AppKit-owned transparent drag surface
+        // over the remaining inert titlebar area. Because this is a sibling
+        // above WKWebView, drag gestures cannot be swallowed by WebKit.
+        let dragRegion = TypeOpenDragRegionView(frame: TypeOpenDragRegionView.frame(in: rootView.bounds))
+        dragRegion.autoresizingMask = [.width, .minYMargin]
+        rootView.addSubview(dragRegion)
+
+        window.contentView = rootView
 
         bridge = NativeBridge(window: window, webView: webView)
         bridge.onCloseAfterSave = { [weak self] in self?.closeAfterSave() }

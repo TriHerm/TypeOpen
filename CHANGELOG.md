@@ -2,6 +2,13 @@
 
 All notable TypeOpen changes are recorded here.
 
+## 0.1.3 — 2026-10-10
+
+Window-drag hotfix.
+
+- Replaced the WKWebView-dependent window-event interception with an AppKit-owned transparent drag surface above the inert titlebar region, so WebKit can no longer swallow drag gestures.
+- Added a native hit-testing regression smoke that verifies the toolbar stays interactive, the drag region owns the intended titlebar area, and the region remains pinned correctly after resize.
+
 ## 0.1.2 — 2026-10-10
 
 Release-hardening and native UX parity.

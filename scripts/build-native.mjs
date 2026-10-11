@@ -17,7 +17,8 @@ const nativeSources = [
   'NativeBridge.swift',
   'PathGrants.swift',
   'RendererSchemeHandler.swift',
-  'RenderJob.swift'
+  'RenderJob.swift',
+  'WindowDrag.swift'
 ].map((name) => join(projectRoot, 'native', 'Sources', name))
 
 if (!existsSync(join(projectRoot, 'dist', 'index.html'))) {
