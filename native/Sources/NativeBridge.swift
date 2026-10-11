@@ -1100,6 +1100,14 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
             }
             if result != 0, errno == EEXIST { throw TypeOpenNativeError.message("An item with that name already exists.") }
             guard result == 0 else { throw posixFailure("Renaming local item") }
+
+            var renamedStatus = stat()
+            let renamedStatusResult = name.withCString { newPointer in
+                fstatat(parentFD, newPointer, &renamedStatus, AT_SYMLINK_NOFOLLOW)
+            }
+            guard renamedStatusResult == 0, fileStatusMatchesSnapshot(renamedStatus, source) else {
+                throw TypeOpenNativeError.message("Renamed item identity changed before it could be verified.")
+            }
         } catch {
             recoverWatcherAfterFailedMutation(normalizedSource)
             throw error
@@ -1107,11 +1115,20 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
 
         grants.revokeDocument(normalizedSource)
         if kind == "file", isEditableDocument(destination) {
-            guard let renamed = nativePathSnapshot(destination, rejectSymbolicLink: true, requiredType: source.fileType),
-                  isInsideOrEqual(renamed.realPath, parent.realPath) else {
+            let expectedRenamed = NativePathSnapshot(
+                realPath: URL(fileURLWithPath: parent.realPath).appendingPathComponent(name).standardizedFileURL.path,
+                device: source.device,
+                inode: source.inode,
+                fileType: source.fileType
+            )
+            guard nativePathSnapshot(parentPath, rejectSymbolicLink: true, requiredType: S_IFDIR) == parent else {
                 throw TypeOpenNativeError.message("Renamed document could not be verified safely.")
             }
-            _ = try grants.grantDocument(destination, expectedSnapshot: renamed)
+            _ = try grants.grantDocument(
+                destination,
+                expectedSnapshot: expectedRenamed,
+                expectedParentSnapshot: parent
+            )
         }
         return ["path": destination, "previousPath": normalizedSource, "kind": kind]
     }

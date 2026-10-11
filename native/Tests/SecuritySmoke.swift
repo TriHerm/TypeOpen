@@ -89,6 +89,28 @@ struct NativeSecuritySmoke {
             require(preserved == "external edit", "revision conflict overwrote the external edit")
         }
 
+        let renameRoot = root.appendingPathComponent("rename-parent-rebind", isDirectory: true)
+        let renameParent = renameRoot.appendingPathComponent("notes", isDirectory: true)
+        let displacedParent = renameRoot.appendingPathComponent("notes-old", isDirectory: true)
+        let renamedPath = renameParent.appendingPathComponent("renamed.md")
+        try fm.createDirectory(at: renameParent, withIntermediateDirectories: true)
+        try "same inode".write(to: renamedPath, atomically: true, encoding: .utf8)
+        let renameParentSnapshot = try XCTUnwrap(nativePathSnapshot(renameParent.path, rejectSymbolicLink: true, requiredType: mode_t(S_IFDIR)), "rename parent snapshot")
+        let renamedSnapshot = try XCTUnwrap(nativePathSnapshot(renamedPath.path, rejectSymbolicLink: true, requiredType: mode_t(S_IFREG)), "renamed file snapshot")
+        try fm.moveItem(at: renameParent, to: displacedParent)
+        try fm.createDirectory(at: renameParent, withIntermediateDirectories: false)
+        try fm.linkItem(at: displacedParent.appendingPathComponent("renamed.md"), to: renamedPath)
+        do {
+            _ = try grants.grantDocument(
+                renamedPath.path,
+                expectedSnapshot: renamedSnapshot,
+                expectedParentSnapshot: renameParentSnapshot
+            )
+            fatalError("snapshot-bound grant accepted a rebound parent directory")
+        } catch {
+            // Expected: identical file identity is insufficient when the parent path was rebound.
+        }
+
         let outside = root.deletingLastPathComponent().appendingPathComponent("typeopen-native-outside-\(UUID().uuidString).md")
         try "outside".write(to: outside, atomically: true, encoding: .utf8)
         defer { try? fm.removeItem(at: outside) }

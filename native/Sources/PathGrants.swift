@@ -98,7 +98,12 @@ final class PathGrants {
     }
 
     @discardableResult
-    func grantDocument(_ filePath: String, expectedRealPath: String? = nil, expectedSnapshot: NativePathSnapshot? = nil) throws -> String {
+    func grantDocument(
+        _ filePath: String,
+        expectedRealPath: String? = nil,
+        expectedSnapshot: NativePathSnapshot? = nil,
+        expectedParentSnapshot: NativePathSnapshot? = nil
+    ) throws -> String {
         guard let normalized = normalizedPath(filePath) else { throw PathGrantError.invalidPath }
         let parentPath = URL(fileURLWithPath: normalized).deletingLastPathComponent().path
         guard let snapshot = realPath(normalized),
@@ -111,6 +116,13 @@ final class PathGrants {
             fileIdentity.device != expectedSnapshot.device ||
             fileIdentity.inode != expectedSnapshot.inode ||
             fileIdentity.fileType != expectedSnapshot.fileType) {
+            throw PathGrantError.changedPath
+        }
+        if let expectedParentSnapshot,
+           (parentRealPath != expectedParentSnapshot.realPath ||
+            parentIdentity.device != expectedParentSnapshot.device ||
+            parentIdentity.inode != expectedParentSnapshot.inode ||
+            parentIdentity.fileType != expectedParentSnapshot.fileType) {
             throw PathGrantError.changedPath
         }
         documents[normalized] = DocumentGrant(
