@@ -16,4 +16,11 @@ describe('recovery snapshots', () => {
     expect(parseRecoverySnapshot({ version: 2, documents: [] })).toBeNull()
     expect(parseRecoverySnapshot({ version: 1, documents: Array.from({ length: 21 }, (_, index) => ({ id: String(index), markdown: '' })) })).toBeNull()
   })
+
+  it('builds an empty snapshot once every document is clean', () => {
+    expect(buildRecoverySnapshot([
+      { id: 'one', markdown: '# One', dirty: false, sourcePath: '/tmp/one.md' },
+      { id: 'two', markdown: '# Two', dirty: false, sourcePath: '/tmp/two.md' }
+    ], 'two')).toEqual({ version: 1, documents: [] })
+  })
 })

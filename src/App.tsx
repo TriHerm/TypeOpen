@@ -214,6 +214,7 @@ export default function App() {
   }, [updateDocument])
 
   const announceDocumentState = useCallback((document: OpenDocument, collection = documentsRef.current) => {
+    if (!recoveryLoaded) return
     window.typeopen.setDocumentState({
       filePath: document.filePath,
       folderPath,
@@ -223,7 +224,7 @@ export default function App() {
       title: documentDisplayTitle(document),
       editorCommandsEnabled: !readOnly && !sourceMode
     })
-  }, [folderPath, readOnly, sourceMode])
+  }, [folderPath, readOnly, recoveryLoaded, sourceMode])
 
   const activateDocument = useCallback((id: string) => {
     if (id === activeDocumentIdRef.current) return
@@ -853,8 +854,9 @@ export default function App() {
   }, [preferences.customThemeCss])
 
   useEffect(() => {
+    if (!recoveryLoaded) return
     window.typeopen.setDocumentState({ filePath, folderPath, openFilePaths: documents.flatMap((document) => document.filePath ? [document.filePath] : []), dirty, hasDirtyDocuments, title, editorCommandsEnabled: !readOnly && !sourceMode })
-  }, [dirty, documents, filePath, folderPath, hasDirtyDocuments, readOnly, sourceMode, title])
+  }, [dirty, documents, filePath, folderPath, hasDirtyDocuments, readOnly, recoveryLoaded, sourceMode, title])
 
   useEffect(() => {
     if (!preferences.autosave || !filePath || !dirty || activeDocument?.externalChanged) return

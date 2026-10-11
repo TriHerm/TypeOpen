@@ -49,6 +49,7 @@ let documentState = {
 }
 let forceClose = false
 let pendingOpenPath = null
+let recoveryLifecycleReady = false
 const pathGrants = createPathGrants()
 
 function assertTrustedRenderer(event) {
@@ -369,6 +370,10 @@ function sanitizeRecoverySnapshot(payload) {
 
 function recoveryFilePath() {
   return path.join(app.getPath('userData'), 'recovery-v1.json')
+}
+
+function clearRecoverySnapshotSync() {
+  try { fs.rmSync(recoveryFilePath(), { force: true }) } catch {}
 }
 
 async function clearRecoverySnapshot() {
@@ -1000,6 +1005,7 @@ function installContextMenu(win) {
 }
 
 async function createWindow() {
+  recoveryLifecycleReady = false
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 820,
@@ -1032,6 +1038,7 @@ async function createWindow() {
 
   mainWindow.on('ready-to-show', () => mainWindow.show())
   mainWindow.on('close', (event) => {
+    if (!forceClose && recoveryLifecycleReady && !documentState.hasDirtyDocuments) clearRecoverySnapshotSync()
     if (!forceClose && documentState.hasDirtyDocuments) {
       event.preventDefault()
       dialog.showMessageBox(mainWindow, {
@@ -1177,6 +1184,7 @@ ipcMain.on('typeopen:document-state', (event, nextState) => {
     hasDirtyDocuments: Boolean(nextState?.hasDirtyDocuments),
     title: typeof nextState?.title === 'string' && nextState.title ? nextState.title.slice(0, 512) : 'Untitled'
   }
+  if (!documentState.hasDirtyDocuments) clearRecoverySnapshotSync()
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setDocumentEdited(Boolean(documentState.dirty))
     mainWindow.setRepresentedFilename(documentState.filePath || '')
@@ -1192,6 +1200,7 @@ ipcMain.on('typeopen:close-after-save', () => {
 })
 
 ipcMain.on('typeopen:renderer-ready', () => {
+  recoveryLifecycleReady = true
   if (pendingOpenPath) {
     sendCommand('open-path', pendingOpenPath)
     pendingOpenPath = null
