@@ -34,6 +34,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Rich Markdown typing shortcuts convert completed `==highlight==` and `~~strikethrough~~` markers without adding delimiter auto-pairing; MDXEditor continues to own the existing bold/italic/code/link transforms.
 - Explicit Markdown hard breaks survive rich/source round-trips; two-space hard breaks may canonicalize to the equivalent backslash form rather than silently becoming soft line breaks.
 - Fenced code blocks with line numbers, Tab/Shift-Tab and native Paragraph Indent/Outdent commands, wrapping, per-block language selection and a configurable default language for newly inserted fences.
+- After a code block language is changed, newly inserted code blocks reuse that language for the rest of the current app session; this does not rewrite the persisted default-language preference.
 - Document outline with hierarchical or flat presentation, configurable H1–H6 depth, branch collapse/expand, Expand All / Collapse All and active-heading reveal.
 - Literal/regex find and replace with case/whole-word controls, recursive folder search, spell checking, word/character stats and optional autosave.
 - Private unsaved-buffer recovery plus native external-file conflict detection and **Reload from Disk**; recovered buffers reopen without filesystem write authority and require an explicit Save As, stale recovery is cleared immediately once all documents are clean, and clean saved tabs can be restored only through an explicit identity-revalidated session action.

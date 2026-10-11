@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CODE_BLOCK_LANGUAGES, codeFenceSnippet, normalizeCodeBlockLanguage } from '../src/lib/codeLanguages'
+import { CODE_BLOCK_LANGUAGES, codeFenceSnippet, effectiveCodeBlockLanguage, normalizeCodeBlockLanguage } from '../src/lib/codeLanguages'
 
 describe('code block language preferences', () => {
   it('keeps supported defaults and safely falls back to plain text', () => {
@@ -20,5 +20,11 @@ describe('code block language preferences', () => {
   it('uses the normalized preference for TypeOpen-owned code-fence snippets', () => {
     expect(codeFenceSnippet('python')).toBe('```python\ncode\n```')
     expect(codeFenceSnippet('unknown')).toBe('```text\ncode\n```')
+  })
+
+  it('uses a session-only last language when present without changing the persisted fallback', () => {
+    expect(effectiveCodeBlockLanguage(null, 'ts')).toBe('ts')
+    expect(effectiveCodeBlockLanguage('python', 'ts')).toBe('python')
+    expect(effectiveCodeBlockLanguage(undefined, 'unsupported')).toBe('text')
   })
 })
