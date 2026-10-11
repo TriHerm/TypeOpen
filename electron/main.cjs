@@ -1014,6 +1014,8 @@ function buildMenu() {
         {
           label: 'Export',
           submenu: [
+            { label: 'Export with Previous', click: () => sendCommand('export-previous') },
+            { type: 'separator' },
             { label: 'PDF…', click: () => sendCommand('export', 'pdf') },
             { label: 'HTML…', click: () => sendCommand('export', 'html') },
             { label: 'HTML (without styles)…', click: () => sendCommand('export', 'html-plain') },

@@ -15,6 +15,7 @@ import { buildRecoverySnapshot, parseRecoverySnapshot } from './lib/recovery'
 import { buildSessionIntent } from './lib/sessionRestore'
 import { codeFenceSnippet, effectiveCodeBlockLanguage, normalizeCodeBlockLanguage, type CodeBlockLanguage } from './lib/codeLanguages'
 import { normalizeOutlineMaxLevel, normalizeOutlineMode } from './lib/outlinePreferences'
+import { isExportFormat, rememberSuccessfulExport, type ExportFormat } from './lib/exportHistory'
 
 const EMPTY_DOCUMENT = ''
 const PREF_KEY = 'typeopen.preferences.v1'
@@ -179,6 +180,7 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [recoveryLoaded, setRecoveryLoaded] = useState(false)
   const [fileEntryDialog, setFileEntryDialog] = useState<{ mode: FileEntryDialogMode; parentPath?: string | null; node?: TypeOpenTreeNode } | null>(null)
+  const previousExportByDocumentRef = useRef(new Map<string, ExportFormat>())
 
   const activeDocument = documents.find((document) => document.id === activeDocumentId) ?? documents[0]
   const markdown = activeDocument?.markdown ?? EMPTY_DOCUMENT
@@ -382,6 +384,7 @@ export default function App() {
     }
 
     rememberClosedDocument(document)
+    previousExportByDocumentRef.current.delete(id)
 
     const latest = documentsRef.current
     const latestIndex = latest.findIndex((candidate) => candidate.id === id)
@@ -705,7 +708,8 @@ export default function App() {
     })
   }, [filePath, markdown, preferences.contentWidth, preferences.theme])
 
-  const exportDocument = useCallback(async (format: string) => {
+  const exportDocument = useCallback(async (format: ExportFormat) => {
+    const documentId = activeDocumentIdRef.current
     setBusy(true)
     try {
       const latest = editorRef.current?.getMarkdown() ?? markdown
@@ -714,18 +718,35 @@ export default function App() {
         const channel = format === 'pdf' ? 'typeopen:export-pdf' : format === 'image' ? 'typeopen:export-image' : 'typeopen:export-html'
         const payload = format.startsWith('html') ? { html, styled: format === 'html' } : format === 'pdf' ? { html, pageSetup } : { html }
         const result = await window.typeopen.invoke<{ filePath: string } | null>(channel, payload)
-        if (result) showToast(`Exported ${basename(result.filePath)}`)
-        return
+        const exportedPath = rememberSuccessfulExport(previousExportByDocumentRef.current, documentId, format, result)
+        if (!exportedPath) return false
+        showToast(`Exported ${basename(exportedPath)}`)
+        return true
       }
       const result = await window.typeopen.invoke<{ ok: boolean; filePath?: string; error?: string } | null>('typeopen:export-pandoc', { markdown: latest, format })
-      if (result?.ok && result.filePath) showToast(`Exported ${basename(result.filePath)}`)
-      else if (result?.error) showToast(result.error)
+      const exportedPath = rememberSuccessfulExport(previousExportByDocumentRef.current, documentId, format, result)
+      if (exportedPath) {
+        showToast(`Exported ${basename(exportedPath)}`)
+        return true
+      }
+      if (result?.error) showToast(result.error)
+      return false
     } catch (error) {
       showToast(error instanceof Error ? error.message : String(error))
+      return false
     } finally {
       setBusy(false)
     }
   }, [createOutputHtml, markdown, pageSetup, showToast])
+
+  const exportWithPrevious = useCallback(async () => {
+    const previousFormat = previousExportByDocumentRef.current.get(activeDocumentIdRef.current)
+    if (!previousFormat) {
+      showToast('No previous export for this document')
+      return false
+    }
+    return exportDocument(previousFormat)
+  }, [exportDocument, showToast])
 
   const printDocument = useCallback(async () => {
     setBusy(true)
@@ -1016,7 +1037,8 @@ export default function App() {
       else if (command === 'rename-document') void relocateActiveDocument('rename')
       else if (command === 'move-document') void relocateActiveDocument('move')
       else if (command === 'open-path' && typeof payload === 'string') void loadFile(payload)
-      else if (command === 'export' && typeof payload === 'string') void exportDocument(payload)
+      else if (command === 'export' && isExportFormat(payload)) void exportDocument(payload)
+      else if (command === 'export-previous') void exportWithPrevious()
       else if (command === 'page-setup') setPageSetupVisible(true)
       else if (command === 'print') void printDocument()
       else if (command === 'toggle-sidebar') setSidebarVisible((value) => !value)
@@ -1074,7 +1096,7 @@ export default function App() {
       else if (command === 'licenses') showToast('TypeOpen is Apache-2.0; third-party notices are included with the project.')
     })
     return unsubscribe
-  }, [closeDocument, duplicateActiveDocument, exportDocument, filePath, handleFormat, insertSnippet, loadFile, markdown, navigateDocument, navigateMatch, newDocument, openFile, openFolder, printDocument, readOnly, relocateActiveDocument, reopenClosedFile, replaceOne, restorePreviousSession, revealCurrentFileInTree, revertActiveDocument, save, saveAllDocuments, showToast, sourceMode, toggleSourceMode])
+  }, [closeDocument, duplicateActiveDocument, exportDocument, exportWithPrevious, filePath, handleFormat, insertSnippet, loadFile, markdown, navigateDocument, navigateMatch, newDocument, openFile, openFolder, printDocument, readOnly, relocateActiveDocument, reopenClosedFile, replaceOne, restorePreviousSession, revealCurrentFileInTree, revertActiveDocument, save, saveAllDocuments, showToast, sourceMode, toggleSourceMode])
 
   useEffect(() => {
     if (recoveryLoaded) window.typeopen.rendererReady()

@@ -42,7 +42,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Light, dark and system appearance settings plus explicitly selected local custom CSS themes with external-resource/executable CSS blocked.
 - Page Setup for Letter/A4/Legal/A5/Tabloid, portrait/landscape orientation and per-side margins used by PDF export and printing.
 - Compact right-click TypeOpen commands plus a searchable `/` command palette for common Markdown blocks.
-- PDF, HTML, style-free HTML and PNG export.
+- PDF, HTML, style-free HTML and PNG export, plus **Export with Previous** to repeat the current document's last successful export format during the app session while still choosing the destination normally.
 - DOCX, ODT, RTF, EPUB, LaTeX and MediaWiki export when Pandoc is installed.
 - Import of supported Pandoc document formats into Markdown when Pandoc is installed.
 

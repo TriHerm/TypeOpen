@@ -282,6 +282,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         fileMenu.addItem(commandItem("Move To", command: "move-document"))
         fileMenu.addItem(.separator())
         let exportMenu = NSMenu(title: "Export")
+        exportMenu.addItem(commandItem("Export with Previous", command: "export-previous"))
+        exportMenu.addItem(.separator())
         exportMenu.addItem(commandItem("PDF…", command: "export", payload: "pdf"))
         exportMenu.addItem(commandItem("HTML…", command: "export", payload: "html"))
         exportMenu.addItem(commandItem("HTML (without styles)…", command: "export", payload: "html-plain"))
