@@ -58,4 +58,25 @@ describe('markdown document helpers', () => {
     const html = await createExportHtml('# Print')
     expect(html).not.toContain('@page')
   })
+
+  it('exports GitHub alerts as styled callouts without exposing the marker', async () => {
+    const html = await createExportHtml('> [!WARNING]\n> **Important** export.\n')
+    expect(html).toContain('class="typeopen-github-alert typeopen-github-alert-warning"')
+    expect(html).toContain('data-alert-type="WARNING"')
+    expect(html).toContain('typeopen-github-alert-label')
+    expect(html).toContain('<strong>Important</strong> export.')
+    expect(html).not.toContain('[!WARNING]')
+  })
+
+  it('does not reinterpret ordinary blockquotes or later alert-like paragraphs', async () => {
+    const ordinary = await createExportHtml('> Ordinary quote.\n')
+    const ordinaryBody = ordinary.slice(ordinary.indexOf('<body>'))
+    expect(ordinaryBody).toContain('<blockquote>')
+    expect(ordinaryBody).not.toContain('class="typeopen-github-alert')
+
+    const laterMarker = await createExportHtml('> - First item\n>\n> [!WARNING]\n> Still an ordinary quote.\n')
+    const laterMarkerBody = laterMarker.slice(laterMarker.indexOf('<body>'))
+    expect(laterMarkerBody).toContain('[!WARNING]')
+    expect(laterMarkerBody).not.toContain('class="typeopen-github-alert')
+  })
 })

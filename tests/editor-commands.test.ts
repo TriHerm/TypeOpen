@@ -13,7 +13,9 @@ describe('editor slash commands', () => {
     expect(filterSlashCommands('image')[0]?.id).toBe('image')
     expect(filterSlashCommands('math')[0]?.id).toBe('math')
     expect(filterSlashCommands('contents')[0]?.id).toBe('toc')
-    expect(filterSlashCommands('note')[0]?.id).toBe('footnote')
+    expect(filterSlashCommands('footnote')[0]?.id).toBe('footnote')
+    expect(filterSlashCommands('note')[0]?.id).toBe('alert-note')
+    expect(filterSlashCommands('warning')[0]?.id).toBe('alert-warning')
   })
 
   it('only treats slash text at a word boundary as a command query', () => {

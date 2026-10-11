@@ -665,7 +665,9 @@ export default function App() {
       paragraph: '\n', h1: '# Heading', h2: '## Heading', h3: '### Heading', h4: '#### Heading', h5: '##### Heading', h6: '###### Heading',
       quote: '> Quote', 'code-fence': codeFenceSnippet(preferences.defaultCodeLanguage), 'math-block': '$$\nE = mc^2\n$$', 'ordered-list': '1. Item', 'unordered-list': '- Item', 'task-list': '- [ ] Task',
       table: '| Column 1 | Column 2 |\n| --- | --- |\n| Value | Value |', toc: '\n\n[TOC]\n\n', frontmatter: '---\ntitle: Untitled\n---\n', hr: '---',
-      link: '[link](https://example.com)', image: '![alt text](assets/image.png)', 'inline-math': '$E = mc^2$', footnote: 'Text[^1]\n\n[^1]: Footnote'
+      link: '[link](https://example.com)', image: '![alt text](assets/image.png)', 'inline-math': '$E = mc^2$', footnote: 'Text[^1]\n\n[^1]: Footnote',
+      'alert-note': '> [!NOTE]\n> Note', 'alert-tip': '> [!TIP]\n> Tip', 'alert-important': '> [!IMPORTANT]\n> Important',
+      'alert-warning': '> [!WARNING]\n> Warning', 'alert-caution': '> [!CAUTION]\n> Caution'
     }
     const snippet = snippets[kind]
     if (snippet !== undefined) {

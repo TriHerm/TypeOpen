@@ -29,6 +29,11 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'math', label: 'Math Block', description: 'Insert a display equation', insertKind: 'math-block', symbol: '∑', keywords: ['math', 'equation', 'latex', 'tex'] },
   { id: 'toc', label: 'Table of Contents', description: 'Insert a live document outline', insertKind: 'toc', symbol: 'TOC', keywords: ['toc', 'contents', 'outline'] },
   { id: 'footnote', label: 'Footnote', description: 'Insert a paired GFM footnote', insertKind: 'footnote', symbol: '[1]', keywords: ['footnote', 'note', 'reference'] },
+  { id: 'alert-note', label: 'Note Alert', description: 'Insert a GitHub-style note alert', insertKind: 'alert-note', symbol: 'N', keywords: ['alert', 'note', 'github', 'callout'] },
+  { id: 'alert-tip', label: 'Tip Alert', description: 'Insert a GitHub-style tip alert', insertKind: 'alert-tip', symbol: 'T', keywords: ['alert', 'tip', 'github', 'callout'] },
+  { id: 'alert-important', label: 'Important Alert', description: 'Insert a GitHub-style important alert', insertKind: 'alert-important', symbol: '!', keywords: ['alert', 'important', 'github', 'callout'] },
+  { id: 'alert-warning', label: 'Warning Alert', description: 'Insert a GitHub-style warning alert', insertKind: 'alert-warning', symbol: '!', keywords: ['alert', 'warning', 'github', 'callout'] },
+  { id: 'alert-caution', label: 'Caution Alert', description: 'Insert a GitHub-style caution alert', insertKind: 'alert-caution', symbol: '!', keywords: ['alert', 'caution', 'github', 'callout'] },
   { id: 'frontmatter', label: 'Front Matter', description: 'Insert YAML document metadata', insertKind: 'frontmatter', symbol: '---', keywords: ['yaml', 'metadata', 'frontmatter'] }
 ]
 

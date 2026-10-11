@@ -48,6 +48,7 @@ import { SlashCommandMenu } from './SlashCommandMenu'
 import { createHtmlCommentToken, decodeHtmlCommentsFromRichEditor, encodeHtmlCommentsForRichEditor } from './commentEncoding'
 import { typeOpenCommentPlugin } from './commentPlugin'
 import { typeOpenFootnotePlugin } from './footnotePlugin'
+import { typeOpenGitHubAlertPlugin } from './githubAlertPlugin'
 import { typeOpenMathPlugin } from './mathPlugin'
 import { typeOpenTocPlugin } from './tocPlugin'
 import { typeOpenTypingErgonomicsPlugin } from './typingErgonomicsPlugin'
@@ -134,6 +135,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     frontmatterPlugin(),
     typeOpenCommentPlugin(commentToken),
     typeOpenFootnotePlugin(),
+    typeOpenGitHubAlertPlugin(),
     typeOpenMathPlugin(),
     typeOpenTocPlugin(),
     typeOpenTypingErgonomicsPlugin(autoPairBrackets),
