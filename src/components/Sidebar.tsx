@@ -16,10 +16,15 @@ interface SidebarProps {
   revealRequest: number
   onOpenFile: (path: string) => void
   onHeadingClick: (item: OutlineItem) => void
+  onRequestFocusEditor: () => void
 }
 
 function containsPath(node: TypeOpenTreeNode, targetPath: string): boolean {
   return node.path === targetPath || Boolean(node.children?.some((child) => containsPath(child, targetPath)))
+}
+
+function navigationScrollBehavior(): ScrollBehavior {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
 }
 
 function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, onOpenFile }: { node: TypeOpenTreeNode; currentFilePath: string | null; revealFilePath: string | null; revealRequest: number; onOpenFile: (path: string) => void }) {
@@ -33,7 +38,7 @@ function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, onOpen
 
   useEffect(() => {
     if (revealRequest && node.type === 'file' && node.path === revealFilePath) {
-      requestAnimationFrame(() => rowRef.current?.scrollIntoView({ block: 'nearest' }))
+      requestAnimationFrame(() => rowRef.current?.scrollIntoView({ block: 'nearest', behavior: navigationScrollBehavior() }))
     }
   }, [node.path, node.type, revealFilePath, revealRequest])
 
@@ -58,7 +63,9 @@ function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, onOpen
   )
 }
 
-export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onHeadingClick }: SidebarProps) {
+export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onHeadingClick, onRequestFocusEditor }: SidebarProps) {
+  const sidebarRef = useRef<HTMLElement>(null)
+  const outlineRef = useRef<HTMLDivElement>(null)
   const articles = useMemo(() => {
     const flattened: TypeOpenTreeNode[] = []
     const visit = (nodes: TypeOpenTreeNode[]) => nodes.forEach((node) => {
@@ -69,9 +76,20 @@ export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug,
     return flattened
   }, [fileTree])
 
-  if (!visible) return null
+  useEffect(() => {
+    if (!visible || tab !== 'outline' || !activeOutlineSlug) return
+    const active = outlineRef.current?.querySelector<HTMLElement>('.outline-row.active')
+    if (!active) return
+    requestAnimationFrame(() => active.scrollIntoView({ block: 'nearest', behavior: navigationScrollBehavior() }))
+  }, [activeOutlineSlug, tab, visible])
+
+  useEffect(() => {
+    if (visible || !sidebarRef.current?.contains(document.activeElement)) return
+    onRequestFocusEditor()
+  }, [onRequestFocusEditor, visible])
+
   return (
-    <aside className="sidebar">
+    <aside ref={sidebarRef} className={`sidebar ${visible ? 'is-visible' : 'is-collapsed'}`} aria-hidden={!visible} inert={!visible}>
       <div className="sidebar-tabs">
         <button className={tab === 'outline' ? 'active' : ''} onClick={() => onTabChange('outline')} title="Outline"><List size={16} /></button>
         <button className={tab === 'articles' ? 'active' : ''} onClick={() => onTabChange('articles')} title="Articles"><Network size={16} /></button>
@@ -79,7 +97,7 @@ export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug,
       </div>
       <div className="sidebar-content">
         {tab === 'outline' && (
-          <div className="outline-list">
+          <div className="outline-list sidebar-panel" ref={outlineRef}>
             {outline.length === 0 && <div className="sidebar-empty">No headings</div>}
             {outline.map((item, index) => (
               <button key={`${item.slug}-${index}`} className={`outline-row level-${item.level} ${activeOutlineSlug === item.slug ? 'active' : ''}`} onClick={() => onHeadingClick(item)} title={`Line ${item.line}`}>
@@ -89,7 +107,7 @@ export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug,
           </div>
         )}
         {tab === 'articles' && (
-          <div className="articles-list">
+          <div className="articles-list sidebar-panel">
             {articles.length === 0 && <div className="sidebar-empty">Open a folder to browse articles</div>}
             {articles.map((node) => (
               <button key={node.path} className={`article-row ${currentFilePath === node.path ? 'active' : ''}`} onClick={() => onOpenFile(node.path)}>
@@ -99,7 +117,7 @@ export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug,
           </div>
         )}
         {tab === 'files' && (
-          <div className="file-tree">
+          <div className="file-tree sidebar-panel">
             {fileTree.length === 0 && <div className="sidebar-empty">Open a folder to browse files</div>}
             {fileTree.map((node) => <TreeNode key={node.path} node={node} currentFilePath={currentFilePath} revealFilePath={revealFilePath} revealRequest={revealRequest} onOpenFile={onOpenFile} />)}
           </div>

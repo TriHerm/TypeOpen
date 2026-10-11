@@ -38,7 +38,7 @@ After signing and notarization, verify the final application and DMG with Apple'
 
 ## Homebrew distribution
 
-The current public `v0.1.3` release is Apple Silicon-only, ad-hoc signed, and not notarized. It therefore does not meet the Gatekeeper requirement for the official `homebrew/cask` repository. The appropriate interim distribution path is a TriHerm-maintained third-party tap.
+The current public `v0.1.5` release is Apple Silicon-only, ad-hoc signed, and not notarized. It therefore does not meet the Gatekeeper requirement for the official `homebrew/cask` repository. The appropriate interim distribution path is a TriHerm-maintained third-party tap.
 
 The reviewable cask and tap layout are maintained under [`packaging/homebrew-tap`](../packaging/homebrew-tap/README.md) and published to `TriHerm/homebrew-tap`, which users install from as `triherm/tap/typeopen`.
 

@@ -1,6 +1,6 @@
 {
   "name": "typeopen",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Open-source Markdown editor for macOS with a focused live editing experience.",
   "main": "electron/main.cjs",
   "scripts": {
