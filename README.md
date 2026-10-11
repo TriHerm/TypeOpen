@@ -37,6 +37,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - After a code block language is changed, newly inserted code blocks reuse that language for the rest of the current app session; this does not rewrite the persisted default-language preference.
 - Document outline with hierarchical or flat presentation, configurable H1–H6 depth, branch collapse/expand, Expand All / Collapse All and active-heading reveal.
 - Literal/regex find and replace with case/whole-word controls, recursive folder search, spell checking, word/character stats and optional autosave.
+- Native macOS **Edit → Substitutions** controls for smart quotes, smart dashes and text replacement, delegated to WKWebView rather than implemented as Markdown-rewriting transforms.
 - Private unsaved-buffer recovery plus native external-file conflict detection and **Reload from Disk**; recovered buffers reopen without filesystem write authority and require an explicit Save As, stale recovery is cleared immediately once all documents are clean, and clean saved tabs can be restored only through an explicit identity-revalidated session action.
 - Light, dark and system appearance settings plus explicitly selected local custom CSS themes with external-resource/executable CSS blocked.
 - Page Setup for Letter/A4/Legal/A5/Tabloid, portrait/landscape orientation and per-side margins used by PDF export and printing.

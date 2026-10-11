@@ -9,6 +9,15 @@ struct ContextMenuSmoke {
             frame: NSRect(x: 0, y: 0, width: 600, height: 400),
             configuration: WKWebViewConfiguration()
         )
+        let substitutionActions: [Selector] = [
+            #selector(NSTextView.orderFrontSubstitutionsPanel(_:)),
+            #selector(NSTextView.toggleAutomaticQuoteSubstitution(_:)),
+            #selector(NSTextView.toggleAutomaticDashSubstitution(_:)),
+            #selector(NSTextView.toggleAutomaticTextReplacement(_:))
+        ]
+        for action in substitutionActions {
+            precondition(view.responds(to: action), "WKWebView must support native substitution action \(NSStringFromSelector(action))")
+        }
         guard let event = NSEvent.mouseEvent(
             with: .rightMouseDown,
             location: NSPoint(x: 200, y: 200),
