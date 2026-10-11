@@ -14,7 +14,7 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Open folder / file tree | static sidebar/file-library resources | Partial | Recursive Markdown/text tree and article list; native runtime adds create file/folder, rename, Move to Trash, refresh, and name/modified sorting. Hidden-file/glob configuration, pinning, creation-date sorting, grouping and other library controls remain |
 | Recent/reopen/quick file workflows | static File menu resources | Implemented | Native recent documents, renderer closed-file history, and filename-only quick open over the current folder |
 | Duplicate / Rename / Move To | static File menu resources | Implemented | Saved local documents only; tab paths update after filesystem operations and TextBundle packages move/copy as complete directories |
-| Outline | static Outline resources | Partial | H1-H6 extraction/navigation plus current-section highlighting while the editor scrolls. Reference collapse-all/expand-all, collapsible/flat modes and chapter-level controls remain |
+| Outline | static Outline resources | Partial | H1-H6 extraction/navigation, hierarchical branch collapse/expand, Expand All / Collapse All and current-section highlighting/reveal are implemented. Reference flat mode and chapter-level controls remain |
 | Source Code Mode | static View command | Implemented | CodeMirror-backed source view via MDXEditor |
 | Read-only Mode | static View command | Implemented | Toggle in UI/menu command |
 | Focus Mode | static View command/preferences | Implemented | Dims non-current top-level editor blocks |
@@ -28,7 +28,7 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Quote / lists / tasks | static Paragraph menu | Implemented | Live editor plugins plus insertion commands |
 | Task Status | static Paragraph menu | Implemented | Uses the public `@lexical/list` `ListItemNode` API to toggle the current checklist item's checked state; normal list items are left unchanged |
 | Tables | static NIB/menu controls | Implemented | Live table plugin, insertion and editing controls supplied by editor engine |
-| Fenced code | static menu/preferences | Implemented | CodeMirror editor with language selection |
+| Fenced code | static menu/preferences | Implemented | CodeMirror provides line numbers, Tab indentation, wrapping and per-block language selection; TypeOpen preferences configure the default language for newly inserted fences. Remember-last-language behavior is not claimed |
 | Inline/block math | static menu/preferences | Implemented | KaTeX; double-click formula to edit TeX |
 | Mermaid diagrams | static diagram preferences | Implemented | Live preview in fenced `mermaid` blocks |
 | Sequence diagrams | static diagram preferences | Implemented | `sequence` fences translated to Mermaid sequence syntax where possible |

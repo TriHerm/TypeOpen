@@ -52,6 +52,7 @@ import { typeOpenMathPlugin } from './mathPlugin'
 import { typeOpenTocPlugin } from './tocPlugin'
 import { typeOpenTypingErgonomicsPlugin } from './typingErgonomicsPlugin'
 import { TYPEOPEN_SOURCE_TYPING } from './sourceTyping'
+import { CODE_BLOCK_LANGUAGES, normalizeCodeBlockLanguage } from '../lib/codeLanguages'
 import { filterSlashCommands, isRootEditableSelection, parseSlashQuery, type SlashCommand } from './slashCommands'
 
 type EditorRealm = Parameters<NonNullable<RealmPlugin['postInit']>>[0]
@@ -94,6 +95,7 @@ interface MarkdownEditorProps {
   imagePreview?: (source: string) => Promise<string>
   toolbarVisible?: boolean
   autoPairBrackets?: boolean
+  defaultCodeLanguage?: string
   onSlashCommand?: (insertKind: string) => void
 }
 
@@ -107,6 +109,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   imagePreview,
   toolbarVisible = false,
   autoPairBrackets = true,
+  defaultCodeLanguage = 'text',
   onSlashCommand
 }, forwardedRef) {
   const editorRef = useRef<MDXEditorMethods>(null)
@@ -135,7 +138,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     typeOpenTocPlugin(),
     typeOpenTypingErgonomicsPlugin(autoPairBrackets),
     codeBlockPlugin({
-      defaultCodeBlockLanguage: 'text',
+      defaultCodeBlockLanguage: normalizeCodeBlockLanguage(defaultCodeLanguage),
       codeBlockEditorDescriptors: [
         {
           priority: 100,
@@ -150,7 +153,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       ]
     }),
     codeMirrorPlugin({
-      codeBlockLanguages: { js: 'JavaScript', jsx: 'JSX', ts: 'TypeScript', tsx: 'TSX', css: 'CSS', html: 'HTML', json: 'JSON', bash: 'Bash', sh: 'Shell', python: 'Python', py: 'Python', sql: 'SQL', rust: 'Rust', swift: 'Swift', mermaid: 'Mermaid', sequence: 'Sequence', flow: 'Flowchart', text: 'Plain Text' },
+      codeBlockLanguages: CODE_BLOCK_LANGUAGES,
       codeMirrorExtensions: [TYPEOPEN_CODE_HIGHLIGHT]
     }),
     diffSourcePlugin({ viewMode: (sourceMode ? 'source' : 'rich-text') as ViewMode, codeMirrorExtensions: [TYPEOPEN_CODE_HIGHLIGHT, TYPEOPEN_SOURCE_TYPING] }),
@@ -175,7 +178,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         </DiffSourceToggleWrapper>
       )
     })] : [])
-  ], [autoPairBrackets, commandBridgePlugin, commentToken, imagePreview, imageUpload, sourceMode, toolbarVisible])
+  ], [autoPairBrackets, commandBridgePlugin, commentToken, defaultCodeLanguage, imagePreview, imageUpload, sourceMode, toolbarVisible])
 
   const getMutableRichEditor = () => {
     const realm = realmRef.current

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import { CODE_BLOCK_LANGUAGES, type CodeBlockLanguage } from '../lib/codeLanguages'
 
 export interface TypeOpenPreferences {
   theme: 'system' | 'light' | 'dark'
@@ -10,6 +11,7 @@ export interface TypeOpenPreferences {
   spellCheck: boolean
   autosave: boolean
   autoPairBrackets: boolean
+  defaultCodeLanguage: CodeBlockLanguage
   statusBar: boolean
   toolbar: boolean
   sidebarDefault: boolean
@@ -57,6 +59,7 @@ export function PreferencesDialog({ visible, preferences, onChange, onClose, onC
             {tab === 'editor' && <>
               <label className="switch-row"><input type="checkbox" checked={preferences.spellCheck} onChange={(event) => patch({ spellCheck: event.target.checked })} /> Check spelling while typing</label>
               <label className="switch-row"><input type="checkbox" checked={preferences.autoPairBrackets} onChange={(event) => patch({ autoPairBrackets: event.target.checked })} /> Auto-pair brackets and quotes</label>
+              <label>Default code language<select value={preferences.defaultCodeLanguage} onChange={(event) => patch({ defaultCodeLanguage: event.target.value as CodeBlockLanguage })}>{Object.entries(CODE_BLOCK_LANGUAGES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
               <p className="preference-note">Markdown shortcuts, tables, code fences, math, links and images are enabled in the live editor.</p>
             </>}
             {tab === 'files' && <>
