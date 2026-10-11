@@ -264,6 +264,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         recentItem.submenu = recentMenu
         recentDocumentsMenu = recentMenu
         fileMenu.addItem(recentItem)
+        fileMenu.addItem(commandItem("Restore Previous Session", command: "restore-session"))
         fileMenu.addItem(commandItem("Reopen Closed File", command: "reopen-closed-file"))
         fileMenu.addItem(commandItem("Open Quickly", command: "open-quickly"))
         fileMenu.addItem(nativeItem("Open File Location", action: #selector(openFileLocation(_:))))

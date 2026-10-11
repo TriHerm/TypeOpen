@@ -38,6 +38,8 @@ const GLOBAL_SEARCH_MAX_FILE_BYTES = 2 * 1024 * 1024
 const BLOCKED_IMAGE_DATA_URL = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
 const MAX_RECOVERY_BYTES = 16 * 1024 * 1024
 const MAX_RECOVERY_DOCUMENTS = 20
+const MAX_SESSION_BYTES = 512 * 1024
+const MAX_SESSION_DOCUMENTS = 20
 
 let mainWindow = null
 let documentState = {
@@ -50,6 +52,7 @@ let documentState = {
 let forceClose = false
 let pendingOpenPath = null
 let recoveryLifecycleReady = false
+let lastSessionIntentSignature = null
 const pathGrants = createPathGrants()
 
 function assertTrustedRenderer(event) {
@@ -413,6 +416,183 @@ async function loadRecoverySnapshot() {
     if (error?.code !== 'ENOENT') await clearRecoverySnapshot()
     return null
   }
+}
+
+function sessionFilePath() {
+  return path.join(app.getPath('userData'), 'session-v1.json')
+}
+
+function isSessionDocument(filePath) {
+  return isTextBundlePath(filePath) || MARKDOWN_EXTENSIONS.has(path.extname(filePath).toLowerCase())
+}
+
+function sessionIdentity(snapshot) {
+  return {
+    realPath: snapshot.realPath,
+    device: String(snapshot.device),
+    inode: String(snapshot.inode),
+    fileType: String(snapshot.fileType)
+  }
+}
+
+function sanitizeSessionIdentity(value) {
+  if (!value || typeof value.realPath !== 'string' || !value.realPath || Buffer.byteLength(value.realPath) > 4096 ||
+      typeof value.device !== 'string' || !/^-?\d{1,32}$/.test(value.device) ||
+      typeof value.inode !== 'string' || !/^-?\d{1,32}$/.test(value.inode) ||
+      typeof value.fileType !== 'string' || !/^-?\d{1,32}$/.test(value.fileType)) {
+    throw new Error('Session manifest contains an invalid file identity.')
+  }
+  return { realPath: value.realPath, device: value.device, inode: value.inode, fileType: value.fileType }
+}
+
+function sessionIdentityMatches(value, snapshot) {
+  try {
+    const expected = sanitizeSessionIdentity(value)
+    return Boolean(snapshot && expected.realPath === snapshot.realPath && expected.device === String(snapshot.device) &&
+      expected.inode === String(snapshot.inode) && expected.fileType === String(snapshot.fileType))
+  } catch {
+    return false
+  }
+}
+
+function sanitizeStoredSessionManifest(payload) {
+  if (!payload || Number(payload.version) !== 1 || !Array.isArray(payload.documents) || payload.documents.length > MAX_SESSION_DOCUMENTS) {
+    throw new Error('Session manifest is invalid.')
+  }
+  const seenIds = new Set()
+  const seenPaths = new Set()
+  const documents = payload.documents.map((raw) => {
+    if (!raw || typeof raw.id !== 'string' || !raw.id || Buffer.byteLength(raw.id) > 128 ||
+        typeof raw.filePath !== 'string' || !path.isAbsolute(raw.filePath) || Buffer.byteLength(raw.filePath) > 4096 ||
+        seenIds.has(raw.id) || seenPaths.has(raw.filePath)) {
+      throw new Error('Session manifest contains an invalid document.')
+    }
+    seenIds.add(raw.id)
+    seenPaths.add(raw.filePath)
+    return {
+      id: raw.id,
+      filePath: raw.filePath,
+      identity: sanitizeSessionIdentity(raw.identity),
+      parentIdentity: sanitizeSessionIdentity(raw.parentIdentity)
+    }
+  })
+  const result = { version: 1, documents }
+  if (typeof payload.activeDocumentId === 'string' && documents.some((document) => document.id === payload.activeDocumentId)) result.activeDocumentId = payload.activeDocumentId
+  return result
+}
+
+function clearSessionManifestSync() {
+  try { fs.rmSync(sessionFilePath(), { force: true }) } catch {}
+}
+
+async function clearSessionManifest() {
+  await fsp.rm(sessionFilePath(), { force: true }).catch(() => undefined)
+}
+
+function buildSessionManifest(payload) {
+  if (!payload || Number(payload.version) !== 1 || !Array.isArray(payload.documents) || payload.documents.length > MAX_SESSION_DOCUMENTS) {
+    throw new Error('Session intent is invalid.')
+  }
+  const documents = []
+  const seenIds = new Set()
+  const seenPaths = new Set()
+  for (const raw of payload.documents) {
+    if (!raw || typeof raw.id !== 'string' || !raw.id || Buffer.byteLength(raw.id) > 128 ||
+        typeof raw.filePath !== 'string' || Buffer.byteLength(raw.filePath) > 4096 || raw.dirty !== false) continue
+    const filePath = path.resolve(raw.filePath)
+    if (!isSessionDocument(filePath) || !pathGrants.isDocumentGranted(filePath) || seenIds.has(raw.id) || seenPaths.has(filePath)) continue
+    const identity = pathSnapshot(filePath, { rejectSymbolicLink: true })
+    const parentIdentity = pathSnapshot(path.dirname(filePath), { rejectSymbolicLink: true })
+    const requiredType = isTextBundlePath(filePath) ? fs.constants.S_IFDIR : fs.constants.S_IFREG
+    if (!identity || identity.fileType !== requiredType || !parentIdentity || parentIdentity.fileType !== fs.constants.S_IFDIR) continue
+    seenIds.add(raw.id)
+    seenPaths.add(filePath)
+    documents.push({ id: raw.id, filePath, identity: sessionIdentity(identity), parentIdentity: sessionIdentity(parentIdentity) })
+  }
+  if (!documents.length) return null
+  const manifest = { version: 1, documents }
+  if (typeof payload.activeDocumentId === 'string' && documents.some((document) => document.id === payload.activeDocumentId)) manifest.activeDocumentId = payload.activeDocumentId
+  return manifest
+}
+
+function saveSessionManifestSync(payload) {
+  const manifest = buildSessionManifest(payload)
+  if (!manifest) {
+    clearSessionManifestSync()
+    return true
+  }
+  const json = JSON.stringify(manifest)
+  if (Buffer.byteLength(json) > MAX_SESSION_BYTES) throw new Error('Session manifest is too large.')
+  const destination = sessionFilePath()
+  const temporary = `${destination}.${process.pid}.tmp`
+  try { fs.rmSync(temporary, { force: true }) } catch {}
+  fs.writeFileSync(temporary, json, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+  try {
+    fs.renameSync(temporary, destination)
+  } catch (error) {
+    try { fs.rmSync(temporary, { force: true }) } catch {}
+    throw error
+  }
+  return true
+}
+
+async function loadSessionManifest() {
+  const destination = sessionFilePath()
+  let handle
+  try {
+    handle = await fsp.open(destination, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+    const stat = await handle.stat()
+    if (!stat.isFile() || stat.size > MAX_SESSION_BYTES) throw new Error('Unsafe session manifest.')
+    const data = await handle.readFile()
+    if (data.length > MAX_SESSION_BYTES) throw new Error('Session manifest is too large.')
+    return sanitizeStoredSessionManifest(JSON.parse(data.toString('utf8')))
+  } catch (error) {
+    if (error?.code !== 'ENOENT') await clearSessionManifest()
+    return null
+  } finally {
+    await handle?.close().catch(() => undefined)
+  }
+}
+
+async function restorePreviousSession() {
+  const manifest = await loadSessionManifest()
+  if (!manifest?.documents?.length) return { version: 1, documents: [], skippedDocuments: 0 }
+  const documents = []
+  const restoredIds = new Set()
+  let skippedDocuments = 0
+  for (const stored of manifest.documents) {
+    const filePath = path.resolve(stored.filePath)
+    if (filePath !== stored.filePath || !isSessionDocument(filePath)) {
+      skippedDocuments += 1
+      continue
+    }
+    const identity = pathSnapshot(filePath, { rejectSymbolicLink: true })
+    const parentIdentity = pathSnapshot(path.dirname(filePath), { rejectSymbolicLink: true })
+    const requiredType = isTextBundlePath(filePath) ? fs.constants.S_IFDIR : fs.constants.S_IFREG
+    if (!identity || identity.fileType !== requiredType || !parentIdentity || parentIdentity.fileType !== fs.constants.S_IFDIR ||
+        !sessionIdentityMatches(stored.identity, identity) || !sessionIdentityMatches(stored.parentIdentity, parentIdentity)) {
+      skippedDocuments += 1
+      continue
+    }
+    const alreadyGranted = pathGrants.isDocumentGranted(filePath)
+    try {
+      pathGrants.grantDocument(filePath, identity)
+      const content = await readDocumentFromSnapshot(filePath, identity)
+      if (!samePathSnapshot(identity, pathSnapshot(filePath, { rejectSymbolicLink: true })) ||
+          !sessionIdentityMatches(stored.parentIdentity, pathSnapshot(path.dirname(filePath), { rejectSymbolicLink: true }))) {
+        throw new Error('Session document changed while it was being restored.')
+      }
+      app.addRecentDocument(filePath)
+      documents.push({ id: stored.id, filePath, content })
+      restoredIds.add(stored.id)
+    } catch {
+      if (!alreadyGranted) pathGrants.revokeDocument(filePath)
+      skippedDocuments += 1
+    }
+  }
+  const result = { version: 1, documents, skippedDocuments }
+  if (typeof manifest.activeDocumentId === 'string' && restoredIds.has(manifest.activeDocumentId)) result.activeDocumentId = manifest.activeDocumentId
+  return result
 }
 
 function duplicateDefaultPath(sourcePath) {
@@ -816,6 +996,7 @@ function buildMenu() {
         { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => sendCommand('open') },
         { label: 'Open Folder…', accelerator: 'CmdOrCtrl+Shift+O', click: () => sendCommand('open-folder') },
         ...(isMac ? [{ label: 'Open Recent', role: 'recentDocuments', submenu: [{ label: 'Clear Recent', role: 'clearRecentDocuments' }] }] : []),
+        { label: 'Restore Previous Session', click: () => sendCommand('restore-session') },
         { label: 'Reopen Closed File', click: () => sendCommand('reopen-closed-file') },
         { label: 'Open Quickly', click: () => sendCommand('open-quickly') },
         { label: 'Open File Location', click: () => { if (documentState.filePath) shell.showItemInFolder(documentState.filePath) } },
@@ -1006,6 +1187,7 @@ function installContextMenu(win) {
 
 async function createWindow() {
   recoveryLifecycleReady = false
+  lastSessionIntentSignature = null
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 820,
@@ -1120,6 +1302,13 @@ ipcMain.handle('typeopen:trash-entry', async (event) => { assertTrustedRenderer(
 ipcMain.handle('typeopen:load-recovery', async (event) => { assertTrustedRenderer(event); return loadRecoverySnapshot() })
 ipcMain.handle('typeopen:save-recovery', async (event, payload) => { assertTrustedRenderer(event); return saveRecoverySnapshot(payload) })
 ipcMain.handle('typeopen:clear-recovery', async (event) => { assertTrustedRenderer(event); await clearRecoverySnapshot(); return true })
+ipcMain.handle('typeopen:save-session', async (event, payload) => {
+  assertTrustedRenderer(event)
+  const result = saveSessionManifestSync(payload)
+  try { lastSessionIntentSignature = JSON.stringify(payload) } catch {}
+  return result
+})
+ipcMain.handle('typeopen:restore-session', async (event) => { assertTrustedRenderer(event); return restorePreviousSession() })
 ipcMain.handle('typeopen:save-file', async (event, payload) => { assertTrustedRenderer(event); return writeDocument(payload) })
 ipcMain.handle('typeopen:save-file-as', async (event, payload) => { assertTrustedRenderer(event); return writeDocument({ ...payload, saveAs: true }) })
 ipcMain.handle('typeopen:duplicate-document', async (event, payload) => { assertTrustedRenderer(event); return duplicateDocument(payload?.filePath, payload?.content) })
@@ -1175,6 +1364,11 @@ ipcMain.handle('typeopen:confirm-external-reload', async (_event, payload) => {
 })
 ipcMain.on('typeopen:document-state', (event, nextState) => {
   if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return
+  const sessionIntent = nextState?.sessionIntent && typeof nextState.sessionIntent === 'object' ? nextState.sessionIntent : null
+  let sessionIntentSignature = null
+  if (sessionIntent) {
+    try { sessionIntentSignature = JSON.stringify(sessionIntent) } catch {}
+  }
   const nextFilePath = typeof nextState?.filePath === 'string' && pathGrants.isDocumentGranted(nextState.filePath) ? path.resolve(nextState.filePath) : null
   const nextFolderPath = typeof nextState?.folderPath === 'string' && pathGrants.isCurrentFolder(nextState.folderPath) ? path.resolve(nextState.folderPath) : null
   documentState = {
@@ -1185,6 +1379,14 @@ ipcMain.on('typeopen:document-state', (event, nextState) => {
     title: typeof nextState?.title === 'string' && nextState.title ? nextState.title.slice(0, 512) : 'Untitled'
   }
   if (!documentState.hasDirtyDocuments) clearRecoverySnapshotSync()
+  if (recoveryLifecycleReady && sessionIntent && sessionIntentSignature && sessionIntentSignature !== lastSessionIntentSignature) {
+    try {
+      saveSessionManifestSync(sessionIntent)
+      lastSessionIntentSignature = sessionIntentSignature
+    } catch {}
+  } else if (!recoveryLifecycleReady && sessionIntentSignature) {
+    lastSessionIntentSignature = sessionIntentSignature
+  }
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setDocumentEdited(Boolean(documentState.dirty))
     mainWindow.setRepresentedFilename(documentState.filePath || '')

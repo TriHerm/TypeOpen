@@ -21,6 +21,8 @@ private let globalSearchMaxFileBytes = 2 * 1024 * 1024
 private let maxThemeCSSBytes = 512 * 1024
 private let maxRecoveryBytes = 16 * 1024 * 1024
 private let maxRecoveryDocuments = 20
+private let maxSessionBytes = 512 * 1024
+private let maxSessionDocuments = 20
 
 struct NativeDocumentState {
     var filePath: String?
@@ -382,6 +384,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     private var documentWatchers: [String: [NativeDocumentWatcher]] = [:]
     private var openDocumentWatchPaths = Set<String>()
     private var documentContentFingerprints: [String: UInt64] = [:]
+    private var lastSessionIntentSignature: Data?
     private(set) var documentState = NativeDocumentState()
 
     var recoveryLifecycleReady: Bool { rendererIsReady }
@@ -687,6 +690,8 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         switch event {
         case "document-state":
             guard let raw = payload as? [String: Any] else { return }
+            let sessionIntent = raw["sessionIntent"] as? [String: Any]
+            let sessionIntentSignature = sessionIntent.flatMap { try? JSONSerialization.data(withJSONObject: $0, options: [.sortedKeys]) }
             let requestedFilePath = raw["filePath"] as? String
             let requestedFolderPath = raw["folderPath"] as? String
             documentState = NativeDocumentState(
@@ -698,6 +703,16 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
                 editorCommandsEnabled: (raw["editorCommandsEnabled"] as? Bool) ?? false
             )
             if !documentState.hasDirtyDocuments { clearRecoverySnapshot() }
+            if rendererIsReady, let sessionIntent, let sessionIntentSignature, sessionIntentSignature != lastSessionIntentSignature {
+                if (try? saveSessionManifest(payload: sessionIntent)) == true {
+                    lastSessionIntentSignature = sessionIntentSignature
+                }
+            } else if !rendererIsReady, let sessionIntentSignature {
+                // Seed only the in-memory signature during startup. This keeps
+                // the previous session manifest intact until the renderer has
+                // loaded recovery and the tab intent actually changes.
+                lastSessionIntentSignature = sessionIntentSignature
+            }
             let openPaths = (raw["openFilePaths"] as? [String]) ?? []
             syncDocumentWatchers(openPaths)
             updateWindowDocumentState()
@@ -746,6 +761,8 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         case "typeopen:clear-recovery":
             clearRecoverySnapshot()
             return true
+        case "typeopen:save-session": return try saveSessionIntent(payload: requireDictionary(payload))
+        case "typeopen:restore-session": return try restorePreviousSession()
         case "typeopen:save-file": return try writeDocument(payload: requireDictionary(payload), saveAs: false)
         case "typeopen:save-file-as": return try writeDocument(payload: requireDictionary(payload), saveAs: true)
         case "typeopen:duplicate-document": return try duplicateDocument(payload: requireDictionary(payload))
@@ -947,6 +964,221 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     func clearRecoverySnapshot() {
         guard let url = try? recoveryFileURL(createDirectory: false) else { return }
         try? FileManager.default.removeItem(at: url)
+    }
+
+    private func sessionFileURL(createDirectory: Bool) throws -> URL {
+        guard let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw TypeOpenNativeError.message("Application Support is unavailable for session data.")
+        }
+        let directory = support.appendingPathComponent("TypeOpen", isDirectory: true)
+        if createDirectory {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+        }
+        return directory.appendingPathComponent("session-v1.json")
+    }
+
+    private func sessionIdentity(_ snapshot: NativePathSnapshot) -> [String: Any] {
+        [
+            "realPath": snapshot.realPath,
+            "device": String(snapshot.device),
+            "inode": String(snapshot.inode),
+            "fileType": String(snapshot.fileType)
+        ]
+    }
+
+    private func sanitizedSessionIdentity(_ value: Any?) throws -> [String: Any] {
+        guard let raw = value as? [String: Any],
+              let realPath = raw["realPath"] as? String, !realPath.isEmpty, realPath.utf8.count <= 4096,
+              let device = raw["device"] as? String, !device.isEmpty, device.utf8.count <= 32,
+              let inode = raw["inode"] as? String, !inode.isEmpty, inode.utf8.count <= 32,
+              let fileType = raw["fileType"] as? String, !fileType.isEmpty, fileType.utf8.count <= 32,
+              device.allSatisfy({ $0.isNumber || $0 == "-" }),
+              inode.allSatisfy({ $0.isNumber || $0 == "-" }),
+              fileType.allSatisfy({ $0.isNumber || $0 == "-" }) else {
+            throw TypeOpenNativeError.message("Session manifest contains an invalid file identity.")
+        }
+        return ["realPath": realPath, "device": device, "inode": inode, "fileType": fileType]
+    }
+
+    private func sessionIdentityMatches(_ value: Any?, snapshot: NativePathSnapshot) -> Bool {
+        guard let raw = try? sanitizedSessionIdentity(value) else { return false }
+        return (raw["realPath"] as? String) == snapshot.realPath &&
+            (raw["device"] as? String) == String(snapshot.device) &&
+            (raw["inode"] as? String) == String(snapshot.inode) &&
+            (raw["fileType"] as? String) == String(snapshot.fileType)
+    }
+
+    private func isSessionDocument(_ filePath: String) -> Bool {
+        let ext = URL(fileURLWithPath: filePath).pathExtension.lowercased()
+        return ext == "textbundle" || markdownExtensions.contains(ext)
+    }
+
+    private func sanitizedStoredSessionManifest(_ payload: [String: Any]) throws -> [String: Any] {
+        guard (payload["version"] as? NSNumber)?.intValue == 1,
+              let rawDocuments = payload["documents"] as? [[String: Any]],
+              rawDocuments.count <= maxSessionDocuments else {
+            throw TypeOpenNativeError.message("Session manifest is invalid.")
+        }
+        var documents: [[String: Any]] = []
+        var seenIDs = Set<String>()
+        var seenPaths = Set<String>()
+        for raw in rawDocuments {
+            guard let id = raw["id"] as? String, !id.isEmpty, id.utf8.count <= 128,
+                  let filePath = raw["filePath"] as? String, !filePath.isEmpty, filePath.utf8.count <= 4096,
+                  filePath.hasPrefix("/"), !seenIDs.contains(id), !seenPaths.contains(filePath) else {
+                throw TypeOpenNativeError.message("Session manifest contains an invalid document.")
+            }
+            let identity = try sanitizedSessionIdentity(raw["identity"])
+            let parentIdentity = try sanitizedSessionIdentity(raw["parentIdentity"])
+            seenIDs.insert(id)
+            seenPaths.insert(filePath)
+            documents.append([
+                "id": id,
+                "filePath": filePath,
+                "identity": identity,
+                "parentIdentity": parentIdentity
+            ])
+        }
+        var result: [String: Any] = ["version": 1, "documents": documents]
+        if let active = payload["activeDocumentId"] as? String, documents.contains(where: { ($0["id"] as? String) == active }) {
+            result["activeDocumentId"] = active
+        }
+        return result
+    }
+
+    private func clearSessionManifest() {
+        guard let url = try? sessionFileURL(createDirectory: false) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    private func saveSessionManifest(payload: [String: Any]) throws -> Bool {
+        guard (payload["version"] as? NSNumber)?.intValue == 1,
+              let rawDocuments = payload["documents"] as? [[String: Any]],
+              rawDocuments.count <= maxSessionDocuments else {
+            throw TypeOpenNativeError.message("Session intent is invalid.")
+        }
+        var documents: [[String: Any]] = []
+        var seenIDs = Set<String>()
+        var seenPaths = Set<String>()
+        for raw in rawDocuments {
+            guard let id = raw["id"] as? String, !id.isEmpty, id.utf8.count <= 128,
+                  let requestedPath = raw["filePath"] as? String, requestedPath.utf8.count <= 4096,
+                  let dirty = raw["dirty"] as? Bool, !dirty else { continue }
+            guard let filePath = normalizedPath(requestedPath),
+                  isSessionDocument(filePath),
+                  grants.isDocumentGranted(filePath),
+                  !seenIDs.contains(id), !seenPaths.contains(filePath) else { continue }
+            let requiredType: mode_t = URL(fileURLWithPath: filePath).pathExtension.lowercased() == "textbundle" ? mode_t(S_IFDIR) : mode_t(S_IFREG)
+            let parentPath = URL(fileURLWithPath: filePath).deletingLastPathComponent().path
+            guard let identity = nativePathSnapshot(filePath, rejectSymbolicLink: true, requiredType: requiredType),
+                  let parentIdentity = nativePathSnapshot(parentPath, rejectSymbolicLink: true, requiredType: S_IFDIR) else { continue }
+            seenIDs.insert(id)
+            seenPaths.insert(filePath)
+            documents.append([
+                "id": id,
+                "filePath": filePath,
+                "identity": sessionIdentity(identity),
+                "parentIdentity": sessionIdentity(parentIdentity)
+            ])
+        }
+        if documents.isEmpty {
+            clearSessionManifest()
+            return true
+        }
+        var manifest: [String: Any] = ["version": 1, "documents": documents]
+        if let active = payload["activeDocumentId"] as? String, documents.contains(where: { ($0["id"] as? String) == active }) {
+            manifest["activeDocumentId"] = active
+        }
+        let data = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys])
+        guard data.count <= maxSessionBytes else { throw TypeOpenNativeError.message("Session manifest is too large.") }
+        let url = try sessionFileURL(createDirectory: true)
+        try data.write(to: url, options: [.atomic])
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        return true
+    }
+
+    private func saveSessionIntent(payload: [String: Any]) throws -> Bool {
+        let result = try saveSessionManifest(payload: payload)
+        if let signature = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) {
+            lastSessionIntentSignature = signature
+        }
+        return result
+    }
+
+    private func loadSessionManifest() throws -> [String: Any]? {
+        let url = try sessionFileURL(createDirectory: false)
+        var status = stat()
+        guard lstat(url.path, &status) == 0 else {
+            if errno == ENOENT { return nil }
+            clearSessionManifest()
+            return nil
+        }
+        guard (status.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG) else {
+            clearSessionManifest()
+            return nil
+        }
+        do {
+            let text = try readStableTextFile(url.path, maximumBytes: maxSessionBytes)
+            guard let payload = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else {
+                clearSessionManifest()
+                return nil
+            }
+            return try sanitizedStoredSessionManifest(payload)
+        } catch {
+            clearSessionManifest()
+            return nil
+        }
+    }
+
+    private func restorePreviousSession() throws -> [String: Any] {
+        guard let manifest = try loadSessionManifest(),
+              let storedDocuments = manifest["documents"] as? [[String: Any]],
+              !storedDocuments.isEmpty else {
+            return ["version": 1, "documents": [], "skippedDocuments": 0]
+        }
+        var restored: [[String: Any]] = []
+        var restoredIDs = Set<String>()
+        var skipped = 0
+        for stored in storedDocuments {
+            guard let id = stored["id"] as? String,
+                  let storedPath = stored["filePath"] as? String,
+                  let filePath = normalizedPath(storedPath), filePath == storedPath,
+                  isSessionDocument(filePath) else {
+                skipped += 1
+                continue
+            }
+            let requiredType: mode_t = URL(fileURLWithPath: filePath).pathExtension.lowercased() == "textbundle" ? mode_t(S_IFDIR) : mode_t(S_IFREG)
+            let parentPath = URL(fileURLWithPath: filePath).deletingLastPathComponent().path
+            guard let identity = nativePathSnapshot(filePath, rejectSymbolicLink: true, requiredType: requiredType),
+                  let parentIdentity = nativePathSnapshot(parentPath, rejectSymbolicLink: true, requiredType: S_IFDIR),
+                  sessionIdentityMatches(stored["identity"], snapshot: identity),
+                  sessionIdentityMatches(stored["parentIdentity"], snapshot: parentIdentity) else {
+                skipped += 1
+                continue
+            }
+            let alreadyGranted = grants.isDocumentGranted(filePath)
+            do {
+                _ = try grants.grantDocument(filePath, expectedSnapshot: identity, expectedParentSnapshot: parentIdentity)
+                let content = try readDocument(filePath, expectedSnapshot: identity)
+                guard nativePathSnapshot(filePath, rejectSymbolicLink: true, requiredType: requiredType) == identity,
+                      nativePathSnapshot(parentPath, rejectSymbolicLink: true, requiredType: S_IFDIR) == parentIdentity else {
+                    throw TypeOpenNativeError.message("Session document changed while it was being restored.")
+                }
+                documentContentFingerprints[filePath] = contentFingerprint(content)
+                noteRecent(filePath)
+                restored.append(["id": id, "filePath": filePath, "content": content])
+                restoredIDs.insert(id)
+            } catch {
+                if !alreadyGranted { grants.revokeDocument(filePath) }
+                skipped += 1
+            }
+        }
+        var result: [String: Any] = ["version": 1, "documents": restored, "skippedDocuments": skipped]
+        if let active = manifest["activeDocumentId"] as? String, restoredIDs.contains(active) {
+            result["activeDocumentId"] = active
+        }
+        return result
     }
 
     private func readGrantedDocument(_ filePath: String) throws -> [String: Any] {

@@ -12,6 +12,7 @@ import { Sidebar, type SidebarTab } from './components/Sidebar'
 import { createExportHtml, documentTitle, extractOutline, getDocumentStats, type OutlineItem } from './lib/markdown'
 import { replaceAllSearch, searchText } from './lib/search'
 import { buildRecoverySnapshot, parseRecoverySnapshot } from './lib/recovery'
+import { buildSessionIntent } from './lib/sessionRestore'
 import { codeFenceSnippet, normalizeCodeBlockLanguage } from './lib/codeLanguages'
 import { normalizeOutlineMaxLevel, normalizeOutlineMode } from './lib/outlinePreferences'
 
@@ -83,6 +84,18 @@ interface OpenDocument {
   savedMarkdown: string
   recoveredFrom: string | null
   externalChanged: boolean
+}
+
+interface RestoredSessionDocument {
+  id: string
+  filePath: string
+  content: string
+}
+
+interface RestoredSessionResult {
+  documents: RestoredSessionDocument[]
+  activeDocumentId?: string
+  skippedDocuments?: number
 }
 
 function createBlankDocument(): OpenDocument {
@@ -175,6 +188,7 @@ export default function App() {
   const searchResult = useMemo(() => searchText(markdown, findQuery, { matchCase, wholeWord, regex: regexSearch }), [findQuery, markdown, matchCase, regexSearch, wholeWord])
   const matches = searchResult.matches
   const title = activeDocument ? documentDisplayTitle(activeDocument) : 'Untitled'
+  const sessionIntent = useMemo(() => buildSessionIntent(documents, activeDocumentId, isDocumentDirty), [activeDocumentId, documents])
 
   const showToast = useCallback((message: string) => {
     setToast(message)
@@ -219,6 +233,7 @@ export default function App() {
       filePath: document.filePath,
       folderPath,
       openFilePaths: collection.flatMap((candidate) => candidate.filePath ? [candidate.filePath] : []),
+      sessionIntent: buildSessionIntent(collection, document.id, isDocumentDirty),
       dirty: isDocumentDirty(document),
       hasDirtyDocuments: collection.some(isDocumentDirty),
       title: documentDisplayTitle(document),
@@ -291,7 +306,7 @@ export default function App() {
     setSidebarTab('files')
   }, [])
 
-  const saveDocument = useCallback(async (id: string, saveAs = false, showSavedToast = true, manageBusy = true) => {
+  const saveDocument = useCallback(async (id: string, saveAs = false, showSavedToast = true, manageBusy = true, persistSession = true) => {
     if (manageBusy) setBusy(true)
     try {
       if (id === activeDocumentIdRef.current) flushActiveEditor()
@@ -309,15 +324,18 @@ export default function App() {
         suggestedName: documentSuggestedName(document)
       })
       if (!result) return false
-      updateDocument(id, (current) => ({
-        ...current,
+      const nextDocuments = replaceDocuments((current) => current.map((candidate) => candidate.id === id ? {
+        ...candidate,
         filePath: result.filePath,
         importedFrom: null,
         markdown: latest,
         savedMarkdown: latest,
         recoveredFrom: null,
         externalChanged: false
-      }))
+      } : candidate))
+      if (persistSession && recoveryLoaded) {
+        await window.typeopen.invoke('typeopen:save-session', buildSessionIntent(nextDocuments, activeDocumentIdRef.current, isDocumentDirty)).catch(() => undefined)
+      }
       if (folderPath) await refreshFolder(folderPath).catch(() => undefined)
       if (showSavedToast) showToast('Saved')
       return true
@@ -327,7 +345,7 @@ export default function App() {
     } finally {
       if (manageBusy) setBusy(false)
     }
-  }, [flushActiveEditor, folderPath, refreshFolder, showToast, updateDocument])
+  }, [flushActiveEditor, folderPath, recoveryLoaded, refreshFolder, replaceDocuments, showToast])
 
   const save = useCallback((saveAs = false) => saveDocument(activeDocumentIdRef.current, saveAs), [saveDocument])
 
@@ -376,6 +394,9 @@ export default function App() {
       announceDocumentState(next, remaining)
       setActiveDocumentId(next.id)
       setCurrentMatch(-1)
+    } else {
+      const active = remaining.find((candidate) => candidate.id === activeDocumentIdRef.current)
+      if (active) announceDocumentState(active, remaining)
     }
     return true
   }, [announceDocumentState, flushActiveEditor, rememberClosedDocument, replaceDocuments, saveDocument, setActiveDocumentId])
@@ -391,6 +412,69 @@ export default function App() {
     closedDocumentsRef.current.unshift(document)
   }, [loadFile, showToast])
 
+  const restorePreviousSession = useCallback(async () => {
+    flushActiveEditor()
+    try {
+      const restored = await window.typeopen.invoke<RestoredSessionResult | null>('typeopen:restore-session')
+      if (!restored?.documents.length) {
+        showToast('No restorable previous session')
+        return
+      }
+
+      const current = documentsRef.current
+      const pristineBlank = current.length === 1 &&
+        current[0].filePath === null &&
+        current[0].importedFrom === null &&
+        current[0].recoveredFrom === null &&
+        current[0].markdown === EMPTY_DOCUMENT &&
+        current[0].savedMarkdown === EMPTY_DOCUMENT
+      const nextDocuments = pristineBlank ? [] : [...current]
+      const existingByPath = new Map(nextDocuments.flatMap((document) => document.filePath ? [[document.filePath, document] as const] : []))
+      const usedIds = new Set(nextDocuments.map((document) => document.id))
+      const restoredIdMap = new Map<string, string>()
+
+      for (const candidate of restored.documents) {
+        const existing = existingByPath.get(candidate.filePath)
+        if (existing) {
+          restoredIdMap.set(candidate.id, existing.id)
+          continue
+        }
+        const id = usedIds.has(candidate.id) ? crypto.randomUUID() : candidate.id
+        usedIds.add(id)
+        restoredIdMap.set(candidate.id, id)
+        const document: OpenDocument = {
+          id,
+          filePath: candidate.filePath,
+          importedFrom: null,
+          markdown: candidate.content,
+          savedMarkdown: candidate.content,
+          recoveredFrom: null,
+          externalChanged: false
+        }
+        nextDocuments.push(document)
+        existingByPath.set(candidate.filePath, document)
+      }
+
+      if (!nextDocuments.length) {
+        showToast('No restorable previous session')
+        return
+      }
+      const requestedActiveId = restored.activeDocumentId ? restoredIdMap.get(restored.activeDocumentId) : undefined
+      const firstRestoredId = restoredIdMap.values().next().value as string | undefined
+      const nextActiveId = requestedActiveId ?? firstRestoredId ?? activeDocumentIdRef.current ?? nextDocuments[0].id
+      documentsRef.current = nextDocuments
+      setDocumentsState(nextDocuments)
+      setActiveDocumentId(nextActiveId)
+      const active = nextDocuments.find((document) => document.id === nextActiveId)
+      if (active) announceDocumentState(active, nextDocuments)
+      setCurrentMatch(-1)
+      const skipped = restored.skippedDocuments ?? 0
+      showToast(`Restored ${restored.documents.length} saved tab${restored.documents.length === 1 ? '' : 's'}${skipped ? `; skipped ${skipped} changed or missing` : ''}`)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : String(error))
+    }
+  }, [announceDocumentState, flushActiveEditor, setActiveDocumentId, showToast])
+
   const navigateDocument = useCallback((delta: number) => {
     const current = documentsRef.current
     if (current.length < 2) return
@@ -405,7 +489,10 @@ export default function App() {
     try {
       const dirtyIds = documentsRef.current.filter(isDocumentDirty).map((document) => document.id)
       for (const id of dirtyIds) {
-        if (!await saveDocument(id, false, false, false)) return false
+        if (!await saveDocument(id, false, false, false, false)) return false
+      }
+      if (recoveryLoaded) {
+        await window.typeopen.invoke('typeopen:save-session', buildSessionIntent(documentsRef.current, activeDocumentIdRef.current, isDocumentDirty)).catch(() => undefined)
       }
       if (closeAfter) {
         try {
@@ -421,7 +508,7 @@ export default function App() {
     } finally {
       setBusy(false)
     }
-  }, [flushActiveEditor, saveDocument, showToast])
+  }, [flushActiveEditor, recoveryLoaded, saveDocument, showToast])
 
   const revealCurrentFileInTree = useCallback(() => {
     if (!filePath) {
@@ -855,8 +942,8 @@ export default function App() {
 
   useEffect(() => {
     if (!recoveryLoaded) return
-    window.typeopen.setDocumentState({ filePath, folderPath, openFilePaths: documents.flatMap((document) => document.filePath ? [document.filePath] : []), dirty, hasDirtyDocuments, title, editorCommandsEnabled: !readOnly && !sourceMode })
-  }, [dirty, documents, filePath, folderPath, hasDirtyDocuments, readOnly, recoveryLoaded, sourceMode, title])
+    window.typeopen.setDocumentState({ filePath, folderPath, openFilePaths: documents.flatMap((document) => document.filePath ? [document.filePath] : []), sessionIntent, dirty, hasDirtyDocuments, title, editorCommandsEnabled: !readOnly && !sourceMode })
+  }, [dirty, documents, filePath, folderPath, hasDirtyDocuments, readOnly, recoveryLoaded, sessionIntent, sourceMode, title])
 
   useEffect(() => {
     if (!preferences.autosave || !filePath || !dirty || activeDocument?.externalChanged) return
@@ -896,6 +983,7 @@ export default function App() {
       if (command === 'new' || command === 'new-tab') newDocument()
       else if (command === 'open') void openFile()
       else if (command === 'open-folder') void openFolder()
+      else if (command === 'restore-session') void restorePreviousSession()
       else if (command === 'reopen-closed-file') void reopenClosedFile()
       else if (command === 'open-quickly') setQuickOpenVisible(true)
       else if (command === 'save') void save(false)
@@ -969,7 +1057,7 @@ export default function App() {
       else if (command === 'licenses') showToast('TypeOpen is Apache-2.0; third-party notices are included with the project.')
     })
     return unsubscribe
-  }, [closeDocument, duplicateActiveDocument, exportDocument, filePath, handleFormat, insertSnippet, loadFile, markdown, navigateDocument, navigateMatch, newDocument, openFile, openFolder, printDocument, readOnly, relocateActiveDocument, reopenClosedFile, replaceOne, revealCurrentFileInTree, revertActiveDocument, save, saveAllDocuments, showToast, sourceMode, toggleSourceMode])
+  }, [closeDocument, duplicateActiveDocument, exportDocument, filePath, handleFormat, insertSnippet, loadFile, markdown, navigateDocument, navigateMatch, newDocument, openFile, openFolder, printDocument, readOnly, relocateActiveDocument, reopenClosedFile, replaceOne, restorePreviousSession, revealCurrentFileInTree, revertActiveDocument, save, saveAllDocuments, showToast, sourceMode, toggleSourceMode])
 
   useEffect(() => {
     if (recoveryLoaded) window.typeopen.rendererReady()

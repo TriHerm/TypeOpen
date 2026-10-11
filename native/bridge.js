@@ -12,6 +12,8 @@
     'typeopen:load-recovery',
     'typeopen:save-recovery',
     'typeopen:clear-recovery',
+    'typeopen:save-session',
+    'typeopen:restore-session',
     'typeopen:save-file',
     'typeopen:save-file-as',
     'typeopen:duplicate-document',

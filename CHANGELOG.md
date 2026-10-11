@@ -18,6 +18,7 @@ Replacement-workflow reliability and file navigation.
 - Added canonical GitHub-style Alerts (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`) as editable rich blocks with exact Markdown round-trip, slash-command insertion and styled HTML/PDF/PNG/Print output.
 - Added CommonMark reference-style links in rich mode for full, collapsed and shortcut forms, preserving definitions and shared/unused references while keeping destination/title editing literal in Source Mode.
 - Hardened unsaved-buffer recovery lifecycle so the host cannot clear a valid startup snapshot before it is loaded, stale dirty snapshots are removed immediately once all open documents are clean, and the native loader rejects unsafe recovery-file indirection.
+- Added explicit **Restore Previous Session** for clean saved tabs. The host persists only already-authorized clean file intent plus captured file/parent identity; loading the manifest grants nothing, and restore revalidates identity before granting and reading each surviving tab. Folder authority is not restored.
 
 ## 0.1.6 — 2026-10-10
 
