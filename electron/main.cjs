@@ -16,23 +16,18 @@ const {
 const { copyDocumentPath, moveDocumentPath, pathExists } = require('./file-ops.cjs')
 const { MAX_THEME_CSS_BYTES, sanitizeThemeCss } = require('./theme-css.cjs')
 const { createPathGrants, isInsideOrEqual, pathSnapshot, samePathSnapshot } = require('./path-grants.cjs')
+const {
+  IMAGE_EXTENSIONS,
+  IMAGE_MIME_TYPES,
+  MARKDOWN_EXTENSIONS,
+  PANDOC_IMPORT_EXTENSIONS,
+  isEditableDocument,
+  isSessionDocument
+} = require('./document-types.cjs')
+const { readAndGrantDocument } = require('./document-reader.cjs')
 
 const execFileAsync = promisify(execFile)
 const DEV_SERVER = process.env.VITE_DEV_SERVER_URL
-const MARKDOWN_EXTENSIONS = new Set([
-  '.md', '.markdown', '.mmd', '.mdown', '.mkd', '.mdwn', '.mdtxt', '.mdtext', '.rmarkdown', '.rmd', '.apib', '.qmd', '.mdx', '.txt', '.text'
-])
-const PANDOC_IMPORT_EXTENSIONS = new Set(['.docx', '.odt', '.rtf', '.epub', '.tex', '.latex', '.ltx', '.rst', '.rest', '.org', '.wiki', '.textile', '.opml'])
-const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.avif'])
-const IMAGE_MIME_TYPES = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.svg': 'image/svg+xml',
-  '.avif': 'image/avif'
-}
 const GLOBAL_SEARCH_MAX_RESULTS = 250
 const GLOBAL_SEARCH_MAX_FILE_BYTES = 2 * 1024 * 1024
 const BLOCKED_IMAGE_DATA_URL = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
@@ -103,10 +98,6 @@ function sendFileChanged(filePath) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('typeopen:file-changed', { filePath })
   }
-}
-
-function isEditableDocument(filePath) {
-  return isTextBundlePath(filePath) || MARKDOWN_EXTENSIONS.has(path.extname(filePath).toLowerCase()) || PANDOC_IMPORT_EXTENSIONS.has(path.extname(filePath).toLowerCase())
 }
 
 function documentFilters() {
@@ -431,10 +422,6 @@ async function loadRecoverySnapshot() {
 
 function sessionFilePath() {
   return path.join(app.getPath('userData'), 'session-v1.json')
-}
-
-function isSessionDocument(filePath) {
-  return isTextBundlePath(filePath) || MARKDOWN_EXTENSIONS.has(path.extname(filePath).toLowerCase())
 }
 
 function sessionIdentity(snapshot) {
@@ -1262,31 +1249,13 @@ ipcMain.handle('typeopen:open-folder', async (event) => { assertTrustedRenderer(
 ipcMain.handle('typeopen:choose-theme-css', async (event) => { assertTrustedRenderer(event); return chooseThemeCss() })
 ipcMain.handle('typeopen:read-file', async (event, filePath) => {
   assertTrustedRenderer(event)
-  await assertReadableDocumentPath(filePath)
-  const hadExactGrant = pathGrants.isDocumentGranted(filePath)
-  const authorizedFolderRealPath = hadExactGrant ? null : pathGrants.getFolderRealPath()
-  const before = pathSnapshot(filePath, { rejectSymbolicLink: true })
-  if (!before) throw new Error('Document path changed before it could be read safely.')
-  if (!hadExactGrant && (!authorizedFolderRealPath || !isInsideOrEqual(before.realPath, authorizedFolderRealPath))) {
-    throw new Error('Document resolved outside the folder authorized by the user.')
-  }
-  const content = await readDocumentFromSnapshot(filePath, before)
-  // Revalidate after I/O before promoting a folder-scoped path to an exact
-  // document grant. This prevents a path swapped to an external symlink
-  // during the read from being returned or permanently authorized.
-  await assertReadableDocumentPath(filePath)
-  const after = pathSnapshot(filePath, { rejectSymbolicLink: true })
-  if (!samePathSnapshot(before, after)) throw new Error('Document path changed while it was being read.')
-  if (!hadExactGrant && pathGrants.getFolderRealPath() !== authorizedFolderRealPath) {
-    throw new Error('Authorized folder changed while the document was being read.')
-  }
-  pathGrants.grantDocument(filePath, before)
-  app.addRecentDocument(filePath)
-  return {
+  return readAndGrantDocument({
     filePath,
-    content,
-    imported: PANDOC_IMPORT_EXTENSIONS.has(path.extname(filePath).toLowerCase())
-  }
+    pathGrants,
+    assertReadableDocumentPath,
+    readDocumentFromSnapshot,
+    noteRecent: (grantedPath) => app.addRecentDocument(grantedPath)
+  })
 })
 ipcMain.handle('typeopen:list-folder', async (event, payload) => {
   assertTrustedRenderer(event)

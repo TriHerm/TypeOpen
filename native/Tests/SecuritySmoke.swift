@@ -39,6 +39,31 @@ struct NativeSecuritySmoke {
         let stableText = try readStableTextFile(safe.path, authorizedRootRealPath: rootReal)
         require(stableText == "safe", "stable read failed")
 
+        let readBoundaryRoot = try XCTUnwrap(nativePathSnapshot(root.path, rejectSymbolicLink: true, requiredType: mode_t(S_IFDIR)), "read boundary root")
+        let readBoundaryGrants = PathGrants()
+        _ = try readBoundaryGrants.setFolder(root.path)
+        let readableDocument = root.appendingPathComponent("readable.md")
+        try "# Readable".write(to: readableDocument, atomically: true, encoding: .utf8)
+        let readableResult = try readAndGrantDocument(readableDocument.path, grants: readBoundaryGrants) { _, snapshot in
+            try readStableTextFile(snapshot, authorizedRoot: readBoundaryRoot)
+        }
+        require(readableResult.content == "# Readable", "editable document was not read through host boundary")
+        require(readBoundaryGrants.canWriteDocument(readableDocument.path), "editable document was not promoted to an exact write grant")
+
+        let imageAsset = root.appendingPathComponent("diagram.svg")
+        try "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>".write(to: imageAsset, atomically: true, encoding: .utf8)
+        require(readBoundaryGrants.canReadDocument(imageAsset.path), "folder authority should allow reading the image asset")
+        require(!readBoundaryGrants.canWriteDocument(imageAsset.path), "image unexpectedly started with write authority")
+        do {
+            _ = try readAndGrantDocument(imageAsset.path, grants: readBoundaryGrants) { _, snapshot in
+                try readStableTextFile(snapshot, authorizedRoot: readBoundaryRoot)
+            }
+            require(false, "image asset was accepted by the editable-document boundary")
+        } catch {
+            require(!readBoundaryGrants.isDocumentGranted(imageAsset.path), "rejected image received an exact document grant")
+            require(!readBoundaryGrants.canWriteDocument(imageAsset.path), "rejected image received write authority")
+        }
+
         let initial = try XCTUnwrap(nativePathSnapshot(safe.path, rejectSymbolicLink: true, requiredType: mode_t(S_IFREG)), "initial file snapshot")
         try fm.removeItem(at: safe)
         try "replacement".write(to: safe, atomically: true, encoding: .utf8)

@@ -24,6 +24,11 @@ private let maxRecoveryDocuments = 20
 private let maxSessionBytes = 512 * 1024
 private let maxSessionDocuments = 20
 
+func isEditableDocumentPath(_ filePath: String) -> Bool {
+    let ext = URL(fileURLWithPath: filePath).pathExtension.lowercased()
+    return ext == "textbundle" || markdownExtensions.contains(ext) || pandocImportExtensions.contains(ext)
+}
+
 struct NativeDocumentState {
     var filePath: String?
     var folderPath: String?
@@ -76,6 +81,31 @@ func nativePathSnapshot(_ path: String, rejectSymbolicLink: Bool, requiredType: 
     let targetType = targetStatus.st_mode & mode_t(S_IFMT)
     if let requiredType, targetType != requiredType { return nil }
     return NativePathSnapshot(realPath: resolved, device: targetStatus.st_dev, inode: targetStatus.st_ino, fileType: targetType)
+}
+
+func readAndGrantDocument(
+    _ filePath: String,
+    grants: PathGrants,
+    read: (String, NativePathSnapshot) throws -> String
+) throws -> (filePath: String, content: String, snapshot: NativePathSnapshot) {
+    guard isEditableDocumentPath(filePath) else {
+        throw TypeOpenNativeError.message("Choose a supported document type.")
+    }
+    guard let normalized = normalizedPath(filePath),
+          let before = grants.readableSnapshot(normalized) ?? grants.replacementReadableSnapshot(normalized),
+          let identityBefore = nativePathSnapshot(normalized, rejectSymbolicLink: false),
+          identityBefore.realPath == before,
+          (grants.readableSnapshot(normalized) ?? grants.replacementReadableSnapshot(normalized)) == before else {
+        throw TypeOpenNativeError.message("Document path has not been granted by the user.")
+    }
+    let content = try read(normalized, identityBefore)
+    guard realPath(normalized) == before,
+          (grants.readableSnapshot(normalized) ?? grants.replacementReadableSnapshot(normalized)) == before,
+          nativePathSnapshot(normalized, rejectSymbolicLink: false) == identityBefore else {
+        throw TypeOpenNativeError.message("Document path changed while it was being read.")
+    }
+    try grants.grantDocument(normalized, expectedSnapshot: identityBefore)
+    return (normalized, content, identityBefore)
 }
 
 private func fileStatusMatchesSnapshot(_ status: stat, _ snapshot: NativePathSnapshot) -> Bool {
@@ -839,8 +869,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     }
 
     private func isEditableDocument(_ filePath: String) -> Bool {
-        let ext = URL(fileURLWithPath: filePath).pathExtension.lowercased()
-        return ext == "textbundle" || markdownExtensions.contains(ext) || pandocImportExtensions.contains(ext)
+        isEditableDocumentPath(filePath)
     }
 
     private func noteRecent(_ filePath: String) {
@@ -1186,27 +1215,16 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     }
 
     private func readGrantedDocument(_ filePath: String) throws -> [String: Any] {
-        guard let normalized = normalizedPath(filePath),
-              let before = grants.readableSnapshot(normalized) ?? grants.replacementReadableSnapshot(normalized),
-              let identityBefore = nativePathSnapshot(normalized, rejectSymbolicLink: false),
-              identityBefore.realPath == before,
-              (grants.readableSnapshot(normalized) ?? grants.replacementReadableSnapshot(normalized)) == before else {
-            throw TypeOpenNativeError.message("Document path has not been granted by the user.")
+        let result = try readAndGrantDocument(filePath, grants: grants) { [self] normalized, identityBefore in
+            try readDocument(normalized, expectedSnapshot: identityBefore)
         }
-        let content = try readDocument(normalized, expectedSnapshot: identityBefore)
-        guard realPath(normalized) == before,
-              (grants.readableSnapshot(normalized) ?? grants.replacementReadableSnapshot(normalized)) == before,
-              nativePathSnapshot(normalized, rejectSymbolicLink: false) == identityBefore else {
-            throw TypeOpenNativeError.message("Document path changed while it was being read.")
-        }
-        try grants.grantDocument(normalized, expectedSnapshot: identityBefore)
-        documentContentFingerprints[normalized] = contentFingerprint(content)
-        if openDocumentWatchPaths.contains(normalized) { armDocumentWatchers(normalized) }
-        noteRecent(normalized)
+        documentContentFingerprints[result.filePath] = contentFingerprint(result.content)
+        if openDocumentWatchPaths.contains(result.filePath) { armDocumentWatchers(result.filePath) }
+        noteRecent(result.filePath)
         return [
-            "filePath": normalized,
-            "content": content,
-            "imported": pandocImportExtensions.contains(URL(fileURLWithPath: normalized).pathExtension.lowercased())
+            "filePath": result.filePath,
+            "content": result.content,
+            "imported": pandocImportExtensions.contains(URL(fileURLWithPath: result.filePath).pathExtension.lowercased())
         ]
     }
 

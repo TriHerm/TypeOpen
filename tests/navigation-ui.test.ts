@@ -171,6 +171,55 @@ describe('navigation accessibility', () => {
     await act(async () => root.unmount())
   })
 
+  it('keeps image assets out of the editable-document flow and can reveal the selected entry', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    const onOpenFile = vi.fn()
+    const onRevealEntry = vi.fn()
+    const fileTree: TypeOpenTreeNode[] = [
+      { type: 'file', name: 'note.md', path: '/notes/note.md' },
+      { type: 'file', name: 'diagram.svg', path: '/notes/diagram.svg' }
+    ]
+
+    await act(async () => {
+      root.render(createElement(Sidebar, {
+        visible: true,
+        tab: 'files',
+        onTabChange: () => undefined,
+        outline: [],
+        outlineDocumentKey: 'doc-1',
+        activeOutlineSlug: null,
+        fileTree,
+        currentFilePath: null,
+        revealFilePath: null,
+        revealRequest: 0,
+        onOpenFile,
+        onRevealEntry,
+        onHeadingClick: () => undefined,
+        onRequestFocusEditor: () => undefined,
+        folderPath: '/notes',
+        onCreateEntry: () => undefined,
+        onRenameEntry: () => undefined,
+        onTrashEntry: () => undefined,
+        onRefreshFolder: () => undefined
+      }))
+    })
+
+    await act(async () => host.querySelector<HTMLButtonElement>('.tree-row.file[title="/notes/note.md"]')?.click())
+    expect(onOpenFile).toHaveBeenCalledWith('/notes/note.md')
+
+    await act(async () => host.querySelector<HTMLButtonElement>('.tree-row.file[title="/notes/diagram.svg"]')?.click())
+    expect(onOpenFile).toHaveBeenCalledTimes(1)
+
+    const revealButton = host.querySelector<HTMLButtonElement>('button[title="Reveal selected in Finder"]')
+    expect(revealButton?.disabled).toBe(false)
+    await act(async () => revealButton?.click())
+    expect(onRevealEntry).toHaveBeenCalledWith(fileTree[1])
+
+    await act(async () => root.unmount())
+  })
+
   it('collapses outline branches and reopens the active heading path', async () => {
     const host = document.createElement('div')
     document.body.append(host)

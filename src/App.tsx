@@ -533,6 +533,14 @@ export default function App() {
     setFileReveal((current) => ({ path: filePath, request: (current?.request ?? 0) + 1 }))
   }, [filePath, fileTree, showToast])
 
+  const revealFolderEntryInFinder = useCallback(async (node: TypeOpenTreeNode) => {
+    try {
+      await window.typeopen.invoke('typeopen:show-item', node.path)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : String(error))
+    }
+  }, [showToast])
+
   const updateOpenDocumentPath = useCallback((previousPath: string, nextPath: string) => {
     const nextDocuments = replaceDocuments((current) => current.map((document) => (
       document.filePath === previousPath ? { ...document, filePath: nextPath } : document
@@ -1116,7 +1124,7 @@ export default function App() {
         <button className="document-tab-add" title="New Tab" aria-label="New Tab" onClick={newDocument}><Plus size={14} /></button>
       </div>
       <div className="workspace">
-        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} outlineDocumentKey={activeDocumentId} activeOutlineSlug={activeOutlineSlug} outlineMode={preferences.outlineMode} outlineMaxLevel={preferences.outlineMaxLevel} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onHeadingClick={scrollToHeading} onRequestFocusEditor={() => editorRef.current?.focus()} folderPath={folderPath} onCreateEntry={beginCreateFolderEntry} onRenameEntry={beginRenameFolderEntry} onTrashEntry={(node) => void trashFolderEntry(node)} onRefreshFolder={() => { if (folderPath) void refreshFolder(folderPath) }} />
+        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} outlineDocumentKey={activeDocumentId} activeOutlineSlug={activeOutlineSlug} outlineMode={preferences.outlineMode} outlineMaxLevel={preferences.outlineMaxLevel} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onRevealEntry={(node) => void revealFolderEntryInFinder(node)} onHeadingClick={scrollToHeading} onRequestFocusEditor={() => editorRef.current?.focus()} folderPath={folderPath} onCreateEntry={beginCreateFolderEntry} onRenameEntry={beginRenameFolderEntry} onTrashEntry={(node) => void trashFolderEntry(node)} onRefreshFolder={() => { if (folderPath) void refreshFolder(folderPath) }} />
         <main className="document-workspace">
           <FindBar
             visible={findVisible}
