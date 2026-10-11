@@ -24,6 +24,7 @@ Replacement-workflow reliability and file navigation.
 - New code blocks remember the last language explicitly selected during the current app session. The saved default-code-language preference remains unchanged and is used again as the fallback on a fresh session.
 - Added an opt-in **Show hidden files in folder tree** preference. Native and Electron hosts apply the visibility filter while preserving folder-grant containment, symlink rejection for descendants and existing `node_modules`/`Library` exclusions.
 - Added folder-tree sorting by file creation date alongside the existing name and modification-time options. Creation timestamps come from host filesystem metadata and do not widen folder authority.
+- Added native **Edit → Substitutions** controls for smart quotes, smart dashes and macOS text replacement. The native host delegates these explicit user actions to WKWebView instead of rewriting Markdown with TypeOpen-owned punctuation transforms.
 
 ## 0.1.6 — 2026-10-10
 
