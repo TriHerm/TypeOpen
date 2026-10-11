@@ -27,6 +27,7 @@ Replacement-workflow reliability and file navigation.
 - Added native **Edit → Substitutions** controls for smart quotes, smart dashes and macOS text replacement. The native host delegates these explicit user actions to WKWebView instead of rewriting Markdown with TypeOpen-owned punctuation transforms.
 - Hardened folder-tree image handling so image assets cannot enter the editable-document `read-file`/grant path. Image rows remain selectable and can be revealed in Finder through the existing folder-scoped authority instead of being opened as Markdown.
 - Added **Export with Previous** as per-document, session-only export history. It remembers only the last successfully completed export format and reruns the normal save flow; cancelled/failed exports do not replace history, and output destinations are not persisted or silently reused.
+- Hardened Electron local-image preview/export reads against pathname replacement: image bytes are now read from a bound file descriptor only after its filesystem identity and containment are validated, with symlink and size checks retained.
 
 ## 0.1.6 — 2026-10-10
 
