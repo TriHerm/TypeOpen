@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -13,6 +13,8 @@ const { createPathGrants, isInsideOrEqual, pathSnapshot } = require('../electron
     clearFolder(): void
     getFolder(): string | null
     getFolderRealPath(): string | null
+    getFolderGrantToken(): unknown | null
+    isFolderGrantCurrent(token: unknown): boolean
     isDocumentGranted(filePath: string): boolean
     canReadDocument(filePath: string): boolean
     canWriteDocument(filePath: string): boolean
@@ -155,5 +157,58 @@ describe('main-process path grants', () => {
     expect(grants.getFolder()).toBeNull()
     expect(grants.isCurrentFolder(workspace)).toBe(false)
     expect(grants.canListFolder(workspace)).toBe(false)
+  })
+
+  it('revokes a folder grant if the selected directory is replaced at the same path', async () => {
+    const root = await tempRoot()
+    const workspace = path.join(root, 'workspace')
+    const moved = path.join(root, 'workspace-old')
+    await mkdir(workspace)
+    const grants = createPathGrants()
+    grants.setFolder(workspace)
+    const token = grants.getFolderGrantToken()
+    expect(token).toBeTruthy()
+
+    await rename(workspace, moved)
+    await mkdir(workspace)
+
+    expect(grants.getFolder()).toBeNull()
+    expect(grants.isFolderGrantCurrent(token)).toBe(false)
+    expect(grants.canListFolder(workspace)).toBe(false)
+  })
+
+  it('invalidates a captured folder grant token when another folder is authorized', async () => {
+    const root = await tempRoot()
+    const first = path.join(root, 'first')
+    const second = path.join(root, 'second')
+    await mkdir(first)
+    await mkdir(second)
+    const grants = createPathGrants()
+    grants.setFolder(first)
+    const firstToken = grants.getFolderGrantToken()
+    expect(firstToken).toBeTruthy()
+    expect(grants.isFolderGrantCurrent(firstToken)).toBe(true)
+
+    grants.setFolder(second)
+
+    expect(grants.isFolderGrantCurrent(firstToken)).toBe(false)
+    expect(grants.getFolder()).toBe(second)
+  })
+
+  it('keeps a selected root symlink authorized while its followed target identity is unchanged', async () => {
+    const root = await tempRoot()
+    const target = path.join(root, 'workspace-target')
+    const selected = path.join(root, 'workspace-link')
+    await mkdir(target)
+    await symlink(target, selected)
+    const grants = createPathGrants()
+
+    grants.setFolder(selected)
+    const token = grants.getFolderGrantToken()
+
+    expect(token).toBeTruthy()
+    expect(grants.getFolder()).toBe(selected)
+    expect(grants.isCurrentFolder(selected)).toBe(true)
+    expect(grants.isFolderGrantCurrent(token)).toBe(true)
   })
 })

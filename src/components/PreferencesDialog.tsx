@@ -18,6 +18,7 @@ export interface TypeOpenPreferences {
   statusBar: boolean
   toolbar: boolean
   sidebarDefault: boolean
+  showHiddenFiles: boolean
 }
 
 interface Props {
@@ -69,6 +70,7 @@ export function PreferencesDialog({ visible, preferences, onChange, onClose, onC
             </>}
             {tab === 'files' && <>
               <label className="switch-row"><input type="checkbox" checked={preferences.autosave} onChange={(event) => patch({ autosave: event.target.checked })} /> Autosave open files after changes</label>
+              <label className="switch-row"><input type="checkbox" checked={preferences.showHiddenFiles} onChange={(event) => patch({ showHiddenFiles: event.target.checked })} /> Show hidden files in folder tree</label>
               <p className="preference-note">Dropped and pasted image files are stored in an <code>assets/</code> directory next to the document when possible.</p>
             </>}
             {tab === 'markdown' && <>

@@ -54,13 +54,22 @@ function samePathSnapshot(left, right) {
     left.mtimeMs === right.mtimeMs)
 }
 
+function samePathIdentity(left, right) {
+  return Boolean(left && right &&
+    left.realPath === right.realPath &&
+    left.device === right.device &&
+    left.inode === right.inode &&
+    left.fileType === right.fileType)
+}
+
 function createPathGrants() {
   const documents = new Map()
   let folder = null
 
   const activeFolder = () => {
     if (!folder) return null
-    return realPath(folder.path) === folder.realPath ? folder : null
+    const current = pathSnapshot(folder.path)
+    return samePathIdentity(folder, current) ? folder : null
   }
 
   return {
@@ -80,9 +89,15 @@ function createPathGrants() {
     setFolder(folderPath) {
       const normalized = normalizePath(folderPath)
       if (!normalized) throw new Error('A valid folder path is required.')
-      const grantedRealPath = realPath(normalized)
-      if (!grantedRealPath) throw new Error('The granted folder path must exist.')
-      folder = { path: normalized, realPath: grantedRealPath }
+      const snapshot = pathSnapshot(normalized)
+      if (!snapshot || snapshot.fileType !== fs.constants.S_IFDIR) throw new Error('The granted folder path must be a local directory.')
+      folder = {
+        path: normalized,
+        realPath: snapshot.realPath,
+        device: snapshot.device,
+        inode: snapshot.inode,
+        fileType: snapshot.fileType
+      }
       return normalized
     },
     clearFolder() {
@@ -93,6 +108,14 @@ function createPathGrants() {
     },
     getFolderRealPath() {
       return activeFolder()?.realPath || null
+    },
+    getFolderGrantToken() {
+      const granted = activeFolder()
+      return granted ? { ...granted } : null
+    },
+    isFolderGrantCurrent(token) {
+      const granted = activeFolder()
+      return Boolean(token && granted && token.path === granted.path && samePathIdentity(token, granted))
     },
     isDocumentGranted(filePath) {
       const normalized = normalizePath(filePath)
@@ -129,4 +152,4 @@ function createPathGrants() {
   }
 }
 
-module.exports = { createPathGrants, isInsideOrEqual, normalizePath, pathSnapshot, realPath, samePathSnapshot }
+module.exports = { createPathGrants, isInsideOrEqual, normalizePath, pathSnapshot, realPath, samePathIdentity, samePathSnapshot }

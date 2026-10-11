@@ -22,6 +22,7 @@ Replacement-workflow reliability and file navigation.
 - Completed rich Markdown typing shortcuts for `==highlight==` and `~~strikethrough~~` using Lexical's public transformers; existing bold/italic/code/link shortcuts remain owned by MDXEditor and Source Mode stays literal.
 - Preserved Markdown hard-break semantics across rich/source round-trips. Backslash and two-space hard breaks now remain explicit breaks instead of degrading to soft newlines; rich normalization uses the canonical backslash marker.
 - New code blocks remember the last language explicitly selected during the current app session. The saved default-code-language preference remains unchanged and is used again as the fallback on a fresh session.
+- Added an opt-in **Show hidden files in folder tree** preference. Native and Electron hosts apply the visibility filter while preserving folder-grant containment, symlink rejection for descendants and existing `node_modules`/`Library` exclusions.
 
 ## 0.1.6 — 2026-10-10
 
