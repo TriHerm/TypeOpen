@@ -31,7 +31,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Focus Mode, Typewriter Mode and Read-only Mode.
 - Optional Typora-style bracket/quote auto-pairing in the rich editor, including closer-skip and empty-pair Backspace behavior; Source Mode keeps CodeMirror's native pairing and continues bullet, ordered and task-list markers on Enter.
 - Fenced code blocks with line numbers, Tab/Shift-Tab and native Paragraph Indent/Outdent commands, wrapping, per-block language selection and a configurable default language for newly inserted fences.
-- Hierarchical document outline with branch collapse/expand, Expand All / Collapse All and active-heading reveal.
+- Document outline with hierarchical or flat presentation, configurable H1–H6 depth, branch collapse/expand, Expand All / Collapse All and active-heading reveal.
 - Literal/regex find and replace with case/whole-word controls, recursive folder search, spell checking, word/character stats and optional autosave.
 - Private unsaved-buffer recovery plus native external-file conflict detection and **Reload from Disk**; recovered buffers reopen without filesystem write authority and require an explicit Save As.
 - Light, dark and system appearance settings plus explicitly selected local custom CSS themes with external-resource/executable CSS blocked.

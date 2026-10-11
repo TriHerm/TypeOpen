@@ -14,6 +14,7 @@ Replacement-workflow reliability and file navigation.
 - Added a configurable default language for newly inserted fenced code blocks while retaining CodeMirror's existing line numbers, Tab indentation, wrapping and per-block language selector.
 - Routed native Paragraph Indent / Outdent commands (including ⌘[ / ⌘]) to the focused CodeMirror editor before falling back to Lexical list indentation, so fenced code and Source Mode retain block/selection indentation inside the native app.
 - Added a hierarchical collapsible document outline with branch toggles, Expand All / Collapse All controls and automatic ancestor expansion when the active heading changes.
+- Added outline presentation preferences for flat versus hierarchical navigation and a maximum visible heading level from H1 through H6, while preserving full-document heading navigation and active-section tracking.
 - Added canonical GitHub-style Alerts (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`) as editable rich blocks with exact Markdown round-trip, slash-command insertion and styled HTML/PDF/PNG/Print output.
 - Added CommonMark reference-style links in rich mode for full, collapsed and shortcut forms, preserving definitions and shared/unused references while keeping destination/title editing literal in Source Mode.
 

@@ -14,7 +14,7 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Open folder / file tree | static sidebar/file-library resources | Partial | Recursive Markdown/text tree and article list; native runtime adds create file/folder, rename, Move to Trash, refresh, and name/modified sorting. Hidden-file/glob configuration, pinning, creation-date sorting, grouping and other library controls remain |
 | Recent/reopen/quick file workflows | static File menu resources | Implemented | Native recent documents, renderer closed-file history, and filename-only quick open over the current folder |
 | Duplicate / Rename / Move To | static File menu resources | Implemented | Saved local documents only; tab paths update after filesystem operations and TextBundle packages move/copy as complete directories |
-| Outline | static Outline resources | Partial | H1-H6 extraction/navigation, hierarchical branch collapse/expand, Expand All / Collapse All and current-section highlighting/reveal are implemented. Reference flat mode and chapter-level controls remain |
+| Outline | static Outline resources | Implemented | H1-H6 extraction/navigation, flat or hierarchical presentation, configurable maximum heading level, hierarchical branch collapse/expand, Expand All / Collapse All and current-section highlighting/reveal are implemented. Hidden deeper active headings project to their nearest visible ancestor |
 | Source Code Mode | static View command | Implemented | CodeMirror-backed source view via MDXEditor |
 | Read-only Mode | static View command | Implemented | Toggle in UI/menu command |
 | Focus Mode | static View command/preferences | Implemented | Dims non-current top-level editor blocks |
@@ -71,7 +71,6 @@ These are intentionally tracked even when they are not part of the current imple
 | --- | --- | --- |
 | Next | Markdown-marker pairing, smart punctuation and configurable whitespace/line-break behavior | Bracket/quote auto-pairing is implemented. Remaining text transformations must stay conservative so they do not duplicate Markdown shortcuts or silently change persisted Markdown |
 | Later | Remember the last code language used during a session | TypeOpen intentionally keeps the persisted default code language authoritative. A future last-used value should be session-only rather than silently rewriting that explicit preference |
-| Next | Flat outline mode and configurable chapter level | Hierarchical collapse/expand, Expand All / Collapse All and active-heading reveal are implemented; alternate flat/chapter-level presentation remains |
 | Next | Session restore for clean files/folders and stronger recovery/version workflows | Unsaved buffers recover safely today; persisted path authority is deliberately not restored implicitly |
 | Later | Multi-window / Open in New Window | Multi-tab model exists; the native app still centers on one main editing window |
 | Later | Advanced file library: hidden-file toggle, configurable glob patterns, pinned/recent locations, grouping and creation-date sorting | Basic native management and name/modified sorting exist |

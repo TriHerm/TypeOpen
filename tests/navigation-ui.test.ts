@@ -214,6 +214,108 @@ describe('navigation accessibility', () => {
     await act(async () => root.unmount())
   })
 
+  it('supports flat outline depth filtering and projects a hidden active heading to its visible ancestor', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const onHeadingClick = vi.fn()
+    const outline = [
+      { level: 1, text: 'Root', line: 1, slug: 'root' },
+      { level: 2, text: 'Child', line: 3, slug: 'child' },
+      { level: 3, text: 'Leaf', line: 5, slug: 'leaf' },
+      { level: 2, text: 'Sibling', line: 7, slug: 'sibling' }
+    ]
+    const baseProps = {
+      visible: true,
+      tab: 'outline' as const,
+      onTabChange: () => undefined,
+      outline,
+      outlineDocumentKey: 'doc-flat-outline',
+      activeOutlineSlug: 'leaf',
+      fileTree: [],
+      currentFilePath: null,
+      revealFilePath: null,
+      revealRequest: 0,
+      onOpenFile: () => undefined,
+      onHeadingClick,
+      onRequestFocusEditor: () => undefined,
+      folderPath: null,
+      onCreateEntry: () => undefined,
+      onRenameEntry: () => undefined,
+      onTrashEntry: () => undefined,
+      onRefreshFolder: () => undefined
+    }
+
+    await act(async () => {
+      root.render(createElement(Sidebar, { ...baseProps, outlineMode: 'flat', outlineMaxLevel: 2 }))
+      await Promise.resolve()
+    })
+
+    expect(Array.from(host.querySelectorAll('.outline-row')).map((row) => row.textContent)).toEqual(['Root', 'Child', 'Sibling'])
+    expect(host.querySelector('.outline-row[title="Line 5"]')).toBeNull()
+    expect(host.querySelector('.outline-row.active')?.textContent).toBe('Child')
+    expect(host.querySelector('.outline-toolbar')).toBeNull()
+    expect(host.querySelector('.outline-toggle')).toBeNull()
+
+    await act(async () => host.querySelector<HTMLButtonElement>('.outline-row[title="Line 3"]')?.click())
+    expect(onHeadingClick).toHaveBeenCalledWith(outline[1])
+
+    await act(async () => {
+      root.render(createElement(Sidebar, { ...baseProps, outlineMode: 'hierarchical', outlineMaxLevel: 2 }))
+      await Promise.resolve()
+    })
+    expect(host.querySelector('.outline-toolbar')).not.toBeNull()
+    expect(host.querySelector('.outline-row[title="Line 5"]')).toBeNull()
+    expect(host.querySelector('.outline-row.active')?.textContent).toBe('Child')
+
+    await act(async () => root.unmount())
+  })
+
+  it('preserves hierarchical collapse state while switching through flat outline mode', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const outline = [
+      { level: 1, text: 'Root', line: 1, slug: 'root' },
+      { level: 2, text: 'Child', line: 3, slug: 'child' },
+      { level: 3, text: 'Leaf', line: 5, slug: 'leaf' }
+    ]
+    const baseProps = {
+      visible: true,
+      tab: 'outline' as const,
+      onTabChange: () => undefined,
+      outline,
+      outlineDocumentKey: 'doc-preserve-collapse',
+      activeOutlineSlug: null,
+      outlineMaxLevel: 6 as const,
+      fileTree: [],
+      currentFilePath: null,
+      revealFilePath: null,
+      revealRequest: 0,
+      onOpenFile: () => undefined,
+      onHeadingClick: () => undefined,
+      onRequestFocusEditor: () => undefined,
+      folderPath: null,
+      onCreateEntry: () => undefined,
+      onRenameEntry: () => undefined,
+      onTrashEntry: () => undefined,
+      onRefreshFolder: () => undefined
+    }
+
+    await act(async () => root.render(createElement(Sidebar, { ...baseProps, outlineMode: 'hierarchical' })))
+    await act(async () => host.querySelector<HTMLButtonElement>('.outline-toggle[aria-label="Collapse Root"]')?.click())
+    expect(host.querySelector('.outline-row[title="Line 5"]')).toBeNull()
+
+    await act(async () => root.render(createElement(Sidebar, { ...baseProps, outlineMode: 'flat' })))
+    expect(host.querySelector('.outline-row[title="Line 5"]')?.textContent).toBe('Leaf')
+
+    await act(async () => root.render(createElement(Sidebar, { ...baseProps, outlineMode: 'hierarchical' })))
+    expect(host.querySelector<HTMLButtonElement>('.outline-toggle[aria-label="Expand Root"]')?.getAttribute('aria-expanded')).toBe('false')
+    expect(host.querySelector('.outline-row[title="Line 5"]')).toBeNull()
+
+    await act(async () => root.unmount())
+  })
+
   it('contains file-entry dialog focus and restores the previous control', async () => {
     const previous = document.createElement('button')
     previous.textContent = 'Previous'
