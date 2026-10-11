@@ -15,7 +15,7 @@ const {
 } = require('./textbundle.cjs')
 const { copyDocumentPath, moveDocumentPath, pathExists } = require('./file-ops.cjs')
 const { MAX_THEME_CSS_BYTES, sanitizeThemeCss } = require('./theme-css.cjs')
-const { createPathGrants, isInsideOrEqual } = require('./path-grants.cjs')
+const { createPathGrants, isInsideOrEqual, pathSnapshot, samePathSnapshot } = require('./path-grants.cjs')
 
 const execFileAsync = promisify(execFile)
 const DEV_SERVER = process.env.VITE_DEV_SERVER_URL
@@ -36,6 +36,8 @@ const IMAGE_MIME_TYPES = {
 const GLOBAL_SEARCH_MAX_RESULTS = 250
 const GLOBAL_SEARCH_MAX_FILE_BYTES = 2 * 1024 * 1024
 const BLOCKED_IMAGE_DATA_URL = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
+const MAX_RECOVERY_BYTES = 16 * 1024 * 1024
+const MAX_RECOVERY_DOCUMENTS = 20
 
 let mainWindow = null
 let documentState = {
@@ -145,6 +147,58 @@ async function readDocument(filePath) {
   return fsp.readFile(filePath, 'utf8')
 }
 
+function fileHandleMatchesSnapshot(stat, snapshot) {
+  return Boolean(snapshot &&
+    stat.dev === snapshot.device &&
+    stat.ino === snapshot.inode &&
+    (stat.mode & fs.constants.S_IFMT) === snapshot.fileType &&
+    stat.size === snapshot.size &&
+    stat.mtimeMs === snapshot.mtimeMs)
+}
+
+async function readBoundFile(filePath, expectedSnapshot) {
+  const handle = await fsp.open(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+  try {
+    const before = await handle.stat()
+    if (!fileHandleMatchesSnapshot(before, expectedSnapshot)) throw new Error('Document changed before it could be read.')
+    const data = await handle.readFile()
+    const after = await handle.stat()
+    if (!fileHandleMatchesSnapshot(after, expectedSnapshot)) throw new Error('Document changed while it was being read.')
+    return data
+  } finally {
+    await handle.close()
+  }
+}
+
+async function readDocumentFromSnapshot(filePath, expectedSnapshot) {
+  const ext = path.extname(filePath).toLowerCase()
+  if (isTextBundlePath(filePath)) {
+    const payloadPath = await resolveTextBundlePayload(filePath)
+    const payloadSnapshot = pathSnapshot(payloadPath, { rejectSymbolicLink: true })
+    if (!payloadSnapshot) throw new Error('TextBundle payload changed before it could be read.')
+    const data = await readBoundFile(payloadPath, payloadSnapshot)
+    if (!samePathSnapshot(expectedSnapshot, pathSnapshot(filePath, { rejectSymbolicLink: true })) ||
+        !samePathSnapshot(payloadSnapshot, pathSnapshot(payloadPath, { rejectSymbolicLink: true }))) {
+      throw new Error('TextBundle changed while it was being read.')
+    }
+    return data.toString('utf8')
+  }
+
+  const data = await readBoundFile(filePath, expectedSnapshot)
+  if (PANDOC_IMPORT_EXTENSIONS.has(ext)) {
+    if (!hasPandoc()) throw new Error(`Pandoc is required to import ${ext || 'this document'} files.`)
+    const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'typeopen-import-'))
+    const sourcePath = path.join(tempDir, `source${ext || '.bin'}`)
+    try {
+      await fsp.writeFile(sourcePath, data, { flag: 'wx', mode: 0o600 })
+      return (await runPandoc([sourcePath, '--to=gfm+yaml_metadata_block'])).stdout
+    } finally {
+      await fsp.rm(tempDir, { recursive: true, force: true })
+    }
+  }
+  return data.toString('utf8')
+}
+
 async function listDirectory(rootPath, depth = 0) {
   if (depth > 14) return []
   const entries = await fsp.readdir(rootPath, { withFileTypes: true })
@@ -158,24 +212,38 @@ async function listDirectory(rootPath, depth = 0) {
   const result = []
   for (const entry of visible) {
     const absolutePath = path.join(rootPath, entry.name)
+    const stat = await fsp.stat(absolutePath).catch(() => null)
+    const modifiedAt = stat?.mtimeMs || 0
     if (entry.isDirectory() && isTextBundlePath(absolutePath)) {
-      result.push({ type: 'file', name: entry.name, path: absolutePath })
+      result.push({ type: 'file', name: entry.name, path: absolutePath, modifiedAt })
     } else if (entry.isDirectory()) {
       result.push({
         type: 'directory',
         name: entry.name,
         path: absolutePath,
+        modifiedAt,
         children: await listDirectory(absolutePath, depth + 1)
       })
     } else if (isEditableDocument(absolutePath) || IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
-      result.push({ type: 'file', name: entry.name, path: absolutePath })
+      result.push({ type: 'file', name: entry.name, path: absolutePath, modifiedAt })
     }
   }
   return result
 }
 
-async function searchFolder(rootPath, { query, matchCase = false } = {}, results = [], authorizedRoot = pathGrants.getFolder()) {
-  if (!rootPath || !authorizedRoot || pathGrants.getFolder() !== authorizedRoot || typeof query !== 'string' || !query || results.length >= GLOBAL_SEARCH_MAX_RESULTS) {
+function createSearchExpression(query, { matchCase = false, wholeWord = false, regex = false } = {}) {
+  if (typeof query !== 'string' || !query) return null
+  const escaped = regex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const source = wholeWord ? `(?<![\\p{L}\\p{N}_])(?:${escaped})(?![\\p{L}\\p{N}_])` : escaped
+  try {
+    return new RegExp(source, matchCase ? 'u' : 'iu')
+  } catch (error) {
+    throw new Error(`Invalid regular expression: ${error.message}`)
+  }
+}
+
+async function searchFolder(rootPath, { query, expression } = {}, results = [], authorizedRoot = pathGrants.getFolder()) {
+  if (!rootPath || !authorizedRoot || pathGrants.getFolder() !== authorizedRoot || typeof query !== 'string' || !query || !expression || results.length >= GLOBAL_SEARCH_MAX_RESULTS) {
     return results
   }
 
@@ -199,14 +267,14 @@ async function searchFolder(rootPath, { query, matchCase = false } = {}, results
         const stat = await fsp.stat(payloadPath)
         if (stat.size > GLOBAL_SEARCH_MAX_FILE_BYTES) continue
         const content = await fsp.readFile(payloadPath, 'utf8')
-        appendSearchMatches(absolutePath, path.relative(authorizedRoot, absolutePath), content, query, matchCase, results)
+        appendSearchMatches(absolutePath, path.relative(authorizedRoot, absolutePath), content, query, expression, results)
       } catch {
         // Ignore malformed or unreadable bundles while searching the folder.
       }
       continue
     }
     if (entry.isDirectory()) {
-      await searchFolder(absolutePath, { query, matchCase }, results, authorizedRoot)
+      await searchFolder(absolutePath, { query, expression }, results, authorizedRoot)
       continue
     }
     if (!entry.isFile() || !MARKDOWN_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) continue
@@ -215,7 +283,7 @@ async function searchFolder(rootPath, { query, matchCase = false } = {}, results
       const stat = await fsp.stat(absolutePath)
       if (stat.size > GLOBAL_SEARCH_MAX_FILE_BYTES) continue
       const content = await fsp.readFile(absolutePath, 'utf8')
-      appendSearchMatches(absolutePath, path.relative(authorizedRoot, absolutePath), content, query, matchCase, results)
+      appendSearchMatches(absolutePath, path.relative(authorizedRoot, absolutePath), content, query, expression, results)
     } catch {
       // Ignore files that become unreadable or disappear while scanning.
     }
@@ -224,16 +292,16 @@ async function searchFolder(rootPath, { query, matchCase = false } = {}, results
   return results
 }
 
-function appendSearchMatches(filePath, relativePath, content, query, matchCase, results) {
-  const needle = matchCase ? query : query.toLocaleLowerCase()
+function appendSearchMatches(filePath, relativePath, content, query, expression, results) {
   for (const [index, line] of content.split(/\r?\n/).entries()) {
     if (results.length >= GLOBAL_SEARCH_MAX_RESULTS) break
-    const haystack = matchCase ? line : line.toLocaleLowerCase()
-    const column = haystack.indexOf(needle)
-    if (column < 0) continue
+    expression.lastIndex = 0
+    const match = expression.exec(line)
+    if (!match || match[0].length === 0) continue
+    const column = match.index
 
     const start = Math.max(0, column - 60)
-    const end = Math.min(line.length, column + query.length + 100)
+    const end = Math.min(line.length, column + Math.max(query.length, match[0].length) + 100)
     const previewText = line.slice(start, end).replace(/\s+/g, ' ').trim()
     results.push({
       filePath,
@@ -279,6 +347,67 @@ async function chooseThemeCss() {
   if (stat.size > MAX_THEME_CSS_BYTES) throw new Error('Theme CSS is too large (512 KiB maximum).')
   const css = sanitizeThemeCss(await fsp.readFile(filePath, 'utf8'))
   return { name: path.basename(filePath), css }
+}
+
+function sanitizeRecoverySnapshot(payload) {
+  if (!payload || Number(payload.version) !== 1 || !Array.isArray(payload.documents) || payload.documents.length > MAX_RECOVERY_DOCUMENTS) {
+    throw new Error('Recovery snapshot is invalid.')
+  }
+  const documents = payload.documents.map((raw) => {
+    if (!raw || typeof raw.id !== 'string' || !raw.id || Buffer.byteLength(raw.id) > 128 || typeof raw.markdown !== 'string') {
+      throw new Error('Recovery snapshot contains an invalid document.')
+    }
+    const document = { id: raw.id, markdown: raw.markdown }
+    if (typeof raw.sourcePath === 'string' && raw.sourcePath) document.sourcePath = raw.sourcePath.slice(0, 4096)
+    if (typeof raw.suggestedName === 'string' && raw.suggestedName) document.suggestedName = raw.suggestedName.slice(0, 512)
+    return document
+  })
+  const result = { version: 1, documents }
+  if (typeof payload.activeDocumentId === 'string' && documents.some((document) => document.id === payload.activeDocumentId)) result.activeDocumentId = payload.activeDocumentId
+  return result
+}
+
+function recoveryFilePath() {
+  return path.join(app.getPath('userData'), 'recovery-v1.json')
+}
+
+async function clearRecoverySnapshot() {
+  await fsp.rm(recoveryFilePath(), { force: true }).catch(() => undefined)
+}
+
+async function saveRecoverySnapshot(payload) {
+  const snapshot = sanitizeRecoverySnapshot(payload)
+  if (snapshot.documents.length === 0) {
+    await clearRecoverySnapshot()
+    return true
+  }
+  const json = JSON.stringify(snapshot)
+  if (Buffer.byteLength(json) > MAX_RECOVERY_BYTES) throw new Error('Recovery snapshot is too large.')
+  const destination = recoveryFilePath()
+  const temporary = `${destination}.${process.pid}.tmp`
+  await fsp.writeFile(temporary, json, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+  try {
+    await fsp.rename(temporary, destination)
+  } catch (error) {
+    await fsp.rm(temporary, { force: true }).catch(() => undefined)
+    throw error
+  }
+  return true
+}
+
+async function loadRecoverySnapshot() {
+  const destination = recoveryFilePath()
+  try {
+    const stat = await fsp.lstat(destination)
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_RECOVERY_BYTES) {
+      await clearRecoverySnapshot()
+      return null
+    }
+    return sanitizeRecoverySnapshot(JSON.parse(await fsp.readFile(destination, 'utf8')))
+  } catch (error) {
+    if (error?.code !== 'ENOENT') await clearRecoverySnapshot()
+    return null
+  }
 }
 
 function duplicateDefaultPath(sourcePath) {
@@ -691,6 +820,7 @@ function buildMenu() {
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => sendCommand('save') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendCommand('save-as') },
         { label: 'Save All', click: () => sendCommand('save-all') },
+        { label: 'Reload from Disk', click: () => sendCommand('reload-from-disk') },
         { label: 'Revert to Saved', click: () => sendCommand('revert') },
         { type: 'separator' },
         { label: 'Duplicate', click: () => sendCommand('duplicate-document') },
@@ -911,9 +1041,10 @@ async function createWindow() {
         cancelId: 2,
         message: 'Do you want to save changes to the open documents?',
         detail: 'Unsaved changes in any open tab will be lost if you do not save them.'
-      }).then(({ response }) => {
+      }).then(async ({ response }) => {
         if (response === 0) sendCommand('save-all-before-close')
         if (response === 1) {
+          await clearRecoverySnapshot()
           forceClose = true
           mainWindow.close()
         }
@@ -932,12 +1063,24 @@ ipcMain.handle('typeopen:choose-theme-css', async (event) => { assertTrustedRend
 ipcMain.handle('typeopen:read-file', async (event, filePath) => {
   assertTrustedRenderer(event)
   await assertReadableDocumentPath(filePath)
-  const content = await readDocument(filePath)
+  const hadExactGrant = pathGrants.isDocumentGranted(filePath)
+  const authorizedFolderRealPath = hadExactGrant ? null : pathGrants.getFolderRealPath()
+  const before = pathSnapshot(filePath, { rejectSymbolicLink: true })
+  if (!before) throw new Error('Document path changed before it could be read safely.')
+  if (!hadExactGrant && (!authorizedFolderRealPath || !isInsideOrEqual(before.realPath, authorizedFolderRealPath))) {
+    throw new Error('Document resolved outside the folder authorized by the user.')
+  }
+  const content = await readDocumentFromSnapshot(filePath, before)
   // Revalidate after I/O before promoting a folder-scoped path to an exact
   // document grant. This prevents a path swapped to an external symlink
   // during the read from being returned or permanently authorized.
   await assertReadableDocumentPath(filePath)
-  pathGrants.grantDocument(filePath)
+  const after = pathSnapshot(filePath, { rejectSymbolicLink: true })
+  if (!samePathSnapshot(before, after)) throw new Error('Document path changed while it was being read.')
+  if (!hadExactGrant && pathGrants.getFolderRealPath() !== authorizedFolderRealPath) {
+    throw new Error('Authorized folder changed while the document was being read.')
+  }
+  pathGrants.grantDocument(filePath, before)
   app.addRecentDocument(filePath)
   return {
     filePath,
@@ -956,9 +1099,20 @@ ipcMain.handle('typeopen:search-folder', async (event, payload) => {
   const folderPath = pathGrants.getFolder()
   if (!folderPath || !query) return { results: [], truncated: false }
   await assertListableFolderPath(folderPath)
-  const results = await searchFolder(folderPath, { query, matchCase: Boolean(payload?.matchCase) }, [], folderPath)
+  const expression = createSearchExpression(query, {
+    matchCase: Boolean(payload?.matchCase),
+    wholeWord: Boolean(payload?.wholeWord),
+    regex: Boolean(payload?.regex)
+  })
+  const results = await searchFolder(folderPath, { query, expression }, [], folderPath)
   return { results, truncated: results.length >= GLOBAL_SEARCH_MAX_RESULTS }
 })
+ipcMain.handle('typeopen:create-entry', async (event) => { assertTrustedRenderer(event); throw new Error('Sidebar file mutations require the native TypeOpen runtime.') })
+ipcMain.handle('typeopen:rename-entry', async (event) => { assertTrustedRenderer(event); throw new Error('Sidebar file mutations require the native TypeOpen runtime.') })
+ipcMain.handle('typeopen:trash-entry', async (event) => { assertTrustedRenderer(event); throw new Error('Sidebar file mutations require the native TypeOpen runtime.') })
+ipcMain.handle('typeopen:load-recovery', async (event) => { assertTrustedRenderer(event); return loadRecoverySnapshot() })
+ipcMain.handle('typeopen:save-recovery', async (event, payload) => { assertTrustedRenderer(event); return saveRecoverySnapshot(payload) })
+ipcMain.handle('typeopen:clear-recovery', async (event) => { assertTrustedRenderer(event); await clearRecoverySnapshot(); return true })
 ipcMain.handle('typeopen:save-file', async (event, payload) => { assertTrustedRenderer(event); return writeDocument(payload) })
 ipcMain.handle('typeopen:save-file-as', async (event, payload) => { assertTrustedRenderer(event); return writeDocument({ ...payload, saveAs: true }) })
 ipcMain.handle('typeopen:duplicate-document', async (event, payload) => { assertTrustedRenderer(event); return duplicateDocument(payload?.filePath, payload?.content) })
@@ -995,6 +1149,22 @@ ipcMain.handle('typeopen:confirm-discard', async (_event, payload) => {
     detail: 'Unsaved changes will be lost if you discard them.'
   })
   return result.response === 0 ? 'save' : result.response === 1 ? 'discard' : 'cancel'
+})
+ipcMain.handle('typeopen:confirm-external-reload', async (_event, payload) => {
+  const title = typeof payload?.title === 'string' && payload.title ? payload.title : documentState.title || 'Untitled'
+  const dirty = Boolean(payload?.dirty)
+  const buttons = dirty ? ['Reload from Disk', 'Save As…', 'Cancel'] : ['Reload from Disk', 'Cancel']
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons,
+    defaultId: 0,
+    cancelId: buttons.length - 1,
+    message: `“${title}” changed on disk.`,
+    detail: dirty ? 'Reloading will discard the changes currently in TypeOpen. You can Save As first to preserve them.' : 'Reload the latest version from disk?'
+  })
+  if (result.response === 0) return 'reload'
+  if (dirty && result.response === 1) return 'save-as'
+  return 'cancel'
 })
 ipcMain.on('typeopen:document-state', (event, nextState) => {
   if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return

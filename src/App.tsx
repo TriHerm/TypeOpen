@@ -4,11 +4,14 @@ import { MarkdownEditor, type MarkdownEditorHandle } from './editor/MarkdownEdit
 import { AboutDialog } from './components/AboutDialog'
 import { FindBar } from './components/FindBar'
 import { GlobalSearch, type GlobalSearchResult } from './components/GlobalSearch'
+import { FileEntryDialog, type FileEntryDialogMode } from './components/FileEntryDialog'
 import { PreferencesDialog, type TypeOpenPreferences } from './components/PreferencesDialog'
 import { DEFAULT_PAGE_SETUP, PageSetupDialog, type PageSetupState } from './components/PageSetupDialog'
 import { QuickOpen } from './components/QuickOpen'
 import { Sidebar, type SidebarTab } from './components/Sidebar'
-import { createExportHtml, documentTitle, extractOutline, findMatches, getDocumentStats, replaceAllLiteral, type OutlineItem } from './lib/markdown'
+import { createExportHtml, documentTitle, extractOutline, getDocumentStats, type OutlineItem } from './lib/markdown'
+import { replaceAllSearch, searchText } from './lib/search'
+import { buildRecoverySnapshot, parseRecoverySnapshot } from './lib/recovery'
 
 const EMPTY_DOCUMENT = ''
 const PREF_KEY = 'typeopen.preferences.v1'
@@ -64,6 +67,8 @@ interface OpenDocument {
   importedFrom: string | null
   markdown: string
   savedMarkdown: string
+  recoveredFrom: string | null
+  externalChanged: boolean
 }
 
 function createBlankDocument(): OpenDocument {
@@ -72,21 +77,25 @@ function createBlankDocument(): OpenDocument {
     filePath: null,
     importedFrom: null,
     markdown: EMPTY_DOCUMENT,
-    savedMarkdown: EMPTY_DOCUMENT
+    savedMarkdown: EMPTY_DOCUMENT,
+    recoveredFrom: null,
+    externalChanged: false
   }
 }
 
 function isDocumentDirty(document: OpenDocument): boolean {
-  return document.markdown !== document.savedMarkdown || document.importedFrom !== null
+  return document.markdown !== document.savedMarkdown || document.importedFrom !== null || document.recoveredFrom !== null
 }
 
 function documentDisplayTitle(document: OpenDocument): string {
+  if (document.recoveredFrom) return `Recovered — ${basename(document.recoveredFrom)}`
   if (document.filePath) return basename(document.filePath)
   if (document.importedFrom) return `${extensionless(document.importedFrom)}.md`
   return documentTitle(document.markdown, 'Untitled')
 }
 
 function documentSuggestedName(document: OpenDocument): string {
+  if (document.recoveredFrom) return basename(document.recoveredFrom)
   if (document.filePath) return basename(document.filePath)
   if (document.importedFrom) return `${extensionless(document.importedFrom)}.md`
   const title = documentTitle(document.markdown, 'Untitled')
@@ -97,9 +106,16 @@ function treeContainsPath(nodes: TypeOpenTreeNode[], targetPath: string): boolea
   return nodes.some((node) => node.path === targetPath || (node.children ? treeContainsPath(node.children, targetPath) : false))
 }
 
+function pathContains(rootPath: string, targetPath: string): boolean {
+  const root = rootPath.replace(/\\/g, '/').replace(/\/+$/, '')
+  const target = targetPath.replace(/\\/g, '/').replace(/\/+$/, '')
+  return target === root || target.startsWith(`${root}/`)
+}
+
 export default function App() {
   const editorRef = useRef<MarkdownEditorHandle>(null)
   const autosaveTimer = useRef<number | null>(null)
+  const recoveryTimer = useRef<number | null>(null)
   const [documents, setDocumentsState] = useState<OpenDocument[]>(() => [createBlankDocument()])
   const [activeDocumentId, setActiveDocumentIdState] = useState(() => documents[0].id)
   const documentsRef = useRef(documents)
@@ -118,6 +134,8 @@ export default function App() {
   const [findQuery, setFindQuery] = useState('')
   const [replacement, setReplacement] = useState('')
   const [matchCase, setMatchCase] = useState(false)
+  const [wholeWord, setWholeWord] = useState(false)
+  const [regexSearch, setRegexSearch] = useState(false)
   const [currentMatch, setCurrentMatch] = useState(-1)
   const [globalSearchVisible, setGlobalSearchVisible] = useState(false)
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
@@ -130,6 +148,8 @@ export default function App() {
   const [activeOutlineSlug, setActiveOutlineSlug] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [recoveryLoaded, setRecoveryLoaded] = useState(false)
+  const [fileEntryDialog, setFileEntryDialog] = useState<{ mode: FileEntryDialogMode; parentPath?: string | null; node?: TypeOpenTreeNode } | null>(null)
 
   const activeDocument = documents.find((document) => document.id === activeDocumentId) ?? documents[0]
   const markdown = activeDocument?.markdown ?? EMPTY_DOCUMENT
@@ -138,7 +158,8 @@ export default function App() {
   const hasDirtyDocuments = documents.some(isDocumentDirty)
   const outline = useMemo(() => extractOutline(markdown), [markdown])
   const stats = useMemo(() => getDocumentStats(markdown), [markdown])
-  const matches = useMemo(() => findMatches(markdown, findQuery, matchCase), [markdown, findQuery, matchCase])
+  const searchResult = useMemo(() => searchText(markdown, findQuery, { matchCase, wholeWord, regex: regexSearch }), [findQuery, markdown, matchCase, regexSearch, wholeWord])
+  const matches = searchResult.matches
   const title = activeDocument ? documentDisplayTitle(activeDocument) : 'Untitled'
 
   const showToast = useCallback((message: string) => {
@@ -182,6 +203,7 @@ export default function App() {
     window.typeopen.setDocumentState({
       filePath: document.filePath,
       folderPath,
+      openFilePaths: collection.flatMap((candidate) => candidate.filePath ? [candidate.filePath] : []),
       dirty: isDocumentDirty(document),
       hasDirtyDocuments: collection.some(isDocumentDirty),
       title: documentDisplayTitle(document),
@@ -223,7 +245,9 @@ export default function App() {
         filePath: imported ? null : result.filePath,
         importedFrom: imported ? result.filePath : null,
         markdown: result.content,
-        savedMarkdown: result.content
+        savedMarkdown: result.content,
+        recoveredFrom: null,
+        externalChanged: false
       }
       const nextDocuments = replaceDocuments((current) => [...current, document])
       announceDocumentState(document, nextDocuments)
@@ -258,6 +282,10 @@ export default function App() {
       if (id === activeDocumentIdRef.current) flushActiveEditor()
       const document = documentsRef.current.find((candidate) => candidate.id === id)
       if (!document) return false
+      if (document.externalChanged && !saveAs) {
+        showToast('File changed on disk. Reload it or use Save As to preserve your version.')
+        return false
+      }
       const latest = document.markdown
       const channel = saveAs ? 'typeopen:save-file-as' : 'typeopen:save-file'
       const result = await window.typeopen.invoke<{ filePath: string } | null>(channel, {
@@ -271,7 +299,9 @@ export default function App() {
         filePath: result.filePath,
         importedFrom: null,
         markdown: latest,
-        savedMarkdown: latest
+        savedMarkdown: latest,
+        recoveredFrom: null,
+        externalChanged: false
       }))
       if (folderPath) await refreshFolder(folderPath).catch(() => undefined)
       if (showSavedToast) showToast('Saved')
@@ -362,7 +392,15 @@ export default function App() {
       for (const id of dirtyIds) {
         if (!await saveDocument(id, false, false, false)) return false
       }
-      if (closeAfter) window.typeopen.closeAfterSave()
+      if (closeAfter) {
+        try {
+          await window.typeopen.invoke('typeopen:clear-recovery')
+        } catch (error) {
+          showToast(error instanceof Error ? error.message : String(error))
+          return false
+        }
+        window.typeopen.closeAfterSave()
+      }
       else showToast(dirtyIds.length ? 'Saved all documents' : 'All documents are saved')
       return true
     } finally {
@@ -429,12 +467,82 @@ export default function App() {
     }
   }, [flushActiveEditor, folderPath, refreshFolder, showToast, updateOpenDocumentPath])
 
+  const beginCreateFolderEntry = useCallback((kind: 'file' | 'folder', parentPath: string | null) => {
+    if (!folderPath) {
+      showToast('Open a folder before creating items')
+      return
+    }
+    setFileEntryDialog({ mode: kind === 'file' ? 'create-file' : 'create-folder', parentPath: parentPath ?? folderPath })
+  }, [folderPath, showToast])
+
+  const beginRenameFolderEntry = useCallback((node: TypeOpenTreeNode) => {
+    if (node.type === 'directory' && documentsRef.current.some((document) => document.filePath && pathContains(node.path, document.filePath))) {
+      showToast('Close documents inside this folder before renaming it')
+      return
+    }
+    setFileEntryDialog({ mode: 'rename', node })
+  }, [showToast])
+
+  const submitFolderEntryDialog = useCallback(async (name: string) => {
+    const dialog = fileEntryDialog
+    if (!dialog) return
+    setBusy(true)
+    try {
+      if (dialog.mode === 'create-file' || dialog.mode === 'create-folder') {
+        const kind = dialog.mode === 'create-file' ? 'file' : 'folder'
+        const result = await window.typeopen.invoke<{ path: string; kind: string }>('typeopen:create-entry', { parentPath: dialog.parentPath ?? folderPath, kind, name })
+        setFileEntryDialog(null)
+        if (folderPath) await refreshFolder(folderPath)
+        if (kind === 'file') await loadFile(result.path)
+        return
+      }
+      if (!dialog.node) return
+      const result = await window.typeopen.invoke<{ path: string; previousPath: string; kind: string }>('typeopen:rename-entry', { path: dialog.node.path, name })
+      setFileEntryDialog(null)
+      if (result.kind === 'file') updateOpenDocumentPath(result.previousPath, result.path)
+      if (folderPath) await refreshFolder(folderPath)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }, [fileEntryDialog, folderPath, loadFile, refreshFolder, showToast, updateOpenDocumentPath])
+
+  const trashFolderEntry = useCallback(async (node: TypeOpenTreeNode) => {
+    const affected = documentsRef.current.filter((document) => document.filePath && pathContains(node.path, document.filePath))
+    if (affected.length) {
+      showToast(`Close ${affected.length === 1 ? 'the open document' : 'open documents'} inside this item before moving it to Trash`)
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await window.typeopen.invoke<{ path: string; trashed: boolean }>('typeopen:trash-entry', { path: node.path })
+      if (!result.trashed) return
+      if (folderPath) await refreshFolder(folderPath)
+      showToast('Moved to Trash')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }, [folderPath, refreshFolder, showToast])
+
   const revertActiveDocument = useCallback(async () => {
     flushActiveEditor()
     const id = activeDocumentIdRef.current
     const document = documentsRef.current.find((candidate) => candidate.id === id)
     if (!document?.filePath) return
-    if (isDocumentDirty(document)) {
+    if (document.externalChanged) {
+      const action = await window.typeopen.invoke<'reload' | 'save-as' | 'cancel'>('typeopen:confirm-external-reload', {
+        title: documentDisplayTitle(document),
+        dirty: isDocumentDirty(document)
+      })
+      if (action === 'cancel') return
+      if (action === 'save-as') {
+        await saveDocument(id, true, false)
+        return
+      }
+    } else if (isDocumentDirty(document)) {
       const action = await window.typeopen.invoke<'save' | 'discard' | 'cancel'>('typeopen:confirm-discard', { title: documentDisplayTitle(document) })
       if (action === 'cancel') return
       if (action === 'save' && !await saveDocument(id, false, false)) return
@@ -442,7 +550,7 @@ export default function App() {
     setBusy(true)
     try {
       const result = await window.typeopen.invoke<{ filePath: string; content: string; imported?: boolean }>('typeopen:read-file', document.filePath)
-      updateDocument(id, (current) => ({ ...current, markdown: result.content, savedMarkdown: result.content, importedFrom: null }))
+      updateDocument(id, (current) => ({ ...current, markdown: result.content, savedMarkdown: result.content, importedFrom: null, recoveredFrom: null, externalChanged: false }))
       editorRef.current?.setMarkdown(result.content)
       setCurrentMatch(-1)
     } catch (error) {
@@ -568,26 +676,31 @@ export default function App() {
         ? (delta >= 0 ? 0 : matches.length - 1)
         : (index + delta + matches.length) % matches.length
       queueMicrotask(() => {
-        window.find(findQuery, matchCase, delta < 0, true, false, false, false)
+        const match = matches[next]
+        window.find(match?.text || findQuery, matchCase, delta < 0, true, wholeWord, false, false)
       })
       return next
     })
-  }, [findQuery, matchCase, matches.length])
+  }, [findQuery, matchCase, matches, wholeWord])
 
   const replaceAll = useCallback(() => {
-    const result = replaceAllLiteral(markdown, findQuery, replacement, matchCase)
+    const result = replaceAllSearch(markdown, findQuery, replacement, { matchCase, wholeWord, regex: regexSearch })
+    if (result.error) {
+      showToast(result.error)
+      return
+    }
     if (result.count) {
       updateDocument(activeDocumentIdRef.current, (document) => ({ ...document, markdown: result.value }))
       editorRef.current?.setMarkdown(result.value)
       showToast(`Replaced ${result.count} occurrence${result.count === 1 ? '' : 's'}`)
     }
-  }, [findQuery, markdown, matchCase, replacement, showToast, updateDocument])
+  }, [findQuery, markdown, matchCase, regexSearch, replacement, showToast, updateDocument, wholeWord])
 
   const replaceOne = useCallback(() => {
     if (!findQuery || !matches.length) return
     const matchIndex = currentMatch < 0 ? 0 : Math.min(currentMatch, matches.length - 1)
-    const index = matches[matchIndex]
-    const next = markdown.slice(0, index) + replacement + markdown.slice(index + findQuery.length)
+    const match = matches[matchIndex]
+    const next = markdown.slice(0, match.index) + replacement + markdown.slice(match.index + match.length)
     updateDocument(activeDocumentIdRef.current, (document) => ({ ...document, markdown: next }))
     editorRef.current?.setMarkdown(next)
     setCurrentMatch(-1)
@@ -644,6 +757,58 @@ export default function App() {
     if (await loadFile(result.filePath)) setGlobalSearchVisible(false)
   }, [loadFile])
 
+  const persistRecoverySnapshot = useCallback(async () => {
+    const snapshot = buildRecoverySnapshot(documentsRef.current.map((document) => ({
+      id: document.id,
+      markdown: document.markdown,
+      dirty: isDocumentDirty(document),
+      sourcePath: document.filePath ?? document.importedFrom ?? document.recoveredFrom ?? undefined,
+      suggestedName: documentSuggestedName(document)
+    })), activeDocumentIdRef.current)
+    await window.typeopen.invoke('typeopen:save-recovery', snapshot)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void window.typeopen.invoke<unknown>('typeopen:load-recovery')
+      .then((value) => {
+        if (cancelled) return
+        const snapshot = parseRecoverySnapshot(value)
+        if (!snapshot?.documents.length) return
+        const restored: OpenDocument[] = snapshot.documents.map((document) => ({
+          id: document.id,
+          filePath: null,
+          importedFrom: null,
+          markdown: document.markdown,
+          savedMarkdown: '',
+          recoveredFrom: document.sourcePath ?? document.suggestedName ?? 'Recovered.md',
+          externalChanged: false
+        }))
+        documentsRef.current = restored
+        setDocumentsState(restored)
+        const nextActive = snapshot.activeDocumentId && restored.some((document) => document.id === snapshot.activeDocumentId)
+          ? snapshot.activeDocumentId
+          : restored[0].id
+        activeDocumentIdRef.current = nextActive
+        setActiveDocumentIdState(nextActive)
+        showToast(`Recovered ${restored.length} unsaved document${restored.length === 1 ? '' : 's'}`)
+      })
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setRecoveryLoaded(true) })
+    return () => { cancelled = true }
+  }, [showToast])
+
+  useEffect(() => {
+    if (!recoveryLoaded) return
+    if (recoveryTimer.current) window.clearTimeout(recoveryTimer.current)
+    recoveryTimer.current = window.setTimeout(() => {
+      void persistRecoverySnapshot().catch(() => undefined)
+    }, 400)
+    return () => {
+      if (recoveryTimer.current) window.clearTimeout(recoveryTimer.current)
+    }
+  }, [activeDocumentId, documents, persistRecoverySnapshot, recoveryLoaded])
+
   useEffect(() => {
     localStorage.setItem(PREF_KEY, JSON.stringify(preferences))
     const root = document.documentElement
@@ -672,15 +837,24 @@ export default function App() {
   }, [preferences.customThemeCss])
 
   useEffect(() => {
-    window.typeopen.setDocumentState({ filePath, folderPath, dirty, hasDirtyDocuments, title, editorCommandsEnabled: !readOnly && !sourceMode })
-  }, [dirty, filePath, folderPath, hasDirtyDocuments, readOnly, sourceMode, title])
+    window.typeopen.setDocumentState({ filePath, folderPath, openFilePaths: documents.flatMap((document) => document.filePath ? [document.filePath] : []), dirty, hasDirtyDocuments, title, editorCommandsEnabled: !readOnly && !sourceMode })
+  }, [dirty, documents, filePath, folderPath, hasDirtyDocuments, readOnly, sourceMode, title])
 
   useEffect(() => {
-    if (!preferences.autosave || !filePath || !dirty) return
+    if (!preferences.autosave || !filePath || !dirty || activeDocument?.externalChanged) return
     if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current)
     autosaveTimer.current = window.setTimeout(() => { void save(false) }, 850)
     return () => { if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current) }
-  }, [activeDocumentId, dirty, filePath, markdown, preferences.autosave, save])
+  }, [activeDocument?.externalChanged, activeDocumentId, dirty, filePath, markdown, preferences.autosave, save])
+
+  useEffect(() => window.typeopen.onFileChanged(({ filePath: changedPath }) => {
+    const changed = documentsRef.current.find((document) => document.filePath === changedPath)
+    if (!changed || changed.externalChanged) return
+    updateDocument(changed.id, (document) => ({ ...document, externalChanged: true }))
+    showToast(changed.id === activeDocumentIdRef.current
+      ? 'File changed on disk. Use File → Reload from Disk to review it.'
+      : `${documentDisplayTitle(changed)} changed on disk.`)
+  }), [showToast, updateDocument])
 
   useEffect(() => {
     if (!folderPath) return
@@ -714,6 +888,7 @@ export default function App() {
       else if (command === 'next-tab') navigateDocument(1)
       else if (command === 'previous-tab') navigateDocument(-1)
       else if (command === 'revert' && filePath) void revertActiveDocument()
+      else if (command === 'reload-from-disk' && filePath) void revertActiveDocument()
       else if (command === 'duplicate-document') void duplicateActiveDocument()
       else if (command === 'rename-document') void relocateActiveDocument('rename')
       else if (command === 'move-document') void relocateActiveDocument('move')
@@ -775,9 +950,12 @@ export default function App() {
       else if (command === 'markdown-reference') void window.typeopen.invoke('typeopen:open-external', 'https://commonmark.org/help/')
       else if (command === 'licenses') showToast('TypeOpen is Apache-2.0; third-party notices are included with the project.')
     })
-    window.typeopen.rendererReady()
     return unsubscribe
   }, [closeDocument, duplicateActiveDocument, exportDocument, filePath, handleFormat, insertSnippet, loadFile, markdown, navigateDocument, navigateMatch, newDocument, openFile, openFolder, printDocument, readOnly, relocateActiveDocument, reopenClosedFile, replaceOne, revealCurrentFileInTree, revertActiveDocument, save, saveAllDocuments, showToast, sourceMode, toggleSourceMode])
+
+  useEffect(() => {
+    if (recoveryLoaded) window.typeopen.rendererReady()
+  }, [recoveryLoaded])
 
   const effectiveTheme = preferences.theme
   return (
@@ -813,6 +991,7 @@ export default function App() {
                 >
                   <span>{documentDisplayTitle(document)}</span>
                   {isDocumentDirty(document) && <span className="document-tab-dirty" aria-label="Unsaved changes">•</span>}
+                  {document.externalChanged && <span className="document-tab-external" aria-label="Changed on disk">↻</span>}
                 </button>
                 <button className="document-tab-close" title="Close Tab" aria-label={`Close ${documentDisplayTitle(document)}`} onClick={() => void closeDocument(document.id)}><X size={12} /></button>
               </div>
@@ -822,7 +1001,7 @@ export default function App() {
         <button className="document-tab-add" title="New Tab" aria-label="New Tab" onClick={newDocument}><Plus size={14} /></button>
       </div>
       <div className="workspace">
-        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} activeOutlineSlug={activeOutlineSlug} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onHeadingClick={scrollToHeading} onRequestFocusEditor={() => editorRef.current?.focus()} />
+        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} activeOutlineSlug={activeOutlineSlug} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onHeadingClick={scrollToHeading} onRequestFocusEditor={() => editorRef.current?.focus()} folderPath={folderPath} onCreateEntry={beginCreateFolderEntry} onRenameEntry={beginRenameFolderEntry} onTrashEntry={(node) => void trashFolderEntry(node)} onRefreshFolder={() => { if (folderPath) void refreshFolder(folderPath) }} />
         <main className="document-workspace">
           <FindBar
             visible={findVisible}
@@ -830,11 +1009,16 @@ export default function App() {
             query={findQuery}
             replacement={replacement}
             matchCase={matchCase}
+            wholeWord={wholeWord}
+            regex={regexSearch}
+            error={searchResult.error}
             matchCount={matches.length}
             currentMatch={Math.min(currentMatch, Math.max(-1, matches.length - 1))}
             onQueryChange={(value) => { setFindQuery(value); setCurrentMatch(-1) }}
             onReplacementChange={setReplacement}
             onMatchCaseChange={setMatchCase}
+            onWholeWordChange={setWholeWord}
+            onRegexChange={setRegexSearch}
             onNext={() => navigateMatch(1)}
             onPrevious={() => navigateMatch(-1)}
             onReplaceOne={replaceOne}
@@ -864,6 +1048,7 @@ export default function App() {
               <span>{stats.words.toLocaleString()} words</span>
               <span>{stats.characters.toLocaleString()} characters</span>
               <span>{stats.readingMinutes ? `${stats.readingMinutes} min read` : ''}</span>
+              {activeDocument?.externalChanged && <span className="status-warning">Changed on disk</span>}
               <span className="status-spacer" />
               <button onClick={() => setReadOnly((value) => !value)}>{readOnly ? 'Read only' : 'Editable'}</button>
               <button onClick={toggleSourceMode}>{sourceMode ? 'Live view' : 'Source'}</button>
@@ -881,6 +1066,7 @@ export default function App() {
         onOpenProject={() => void window.typeopen.invoke('typeopen:open-external', 'https://github.com/TriHerm/TypeOpen')}
       />
       <PreferencesDialog visible={preferencesVisible} preferences={preferences} onChange={setPreferences} onClose={() => setPreferencesVisible(false)} onChooseCustomTheme={() => void chooseCustomTheme()} />
+      <FileEntryDialog visible={Boolean(fileEntryDialog)} mode={fileEntryDialog?.mode ?? 'create-file'} initialName={fileEntryDialog?.node?.name ?? ''} onClose={() => setFileEntryDialog(null)} onSubmit={(name) => void submitFolderEntryDialog(name)} />
           <PageSetupDialog visible={pageSetupVisible} value={pageSetup} onChange={setPageSetup} onClose={() => setPageSetupVisible(false)} />
       {toast && <div className="toast">{toast}</div>}
       {busy && <div className="busy-indicator">Working…</div>}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, File, Folder, FolderOpen, List, Network } from 'lucide-react'
+import { ChevronDown, ChevronRight, File, FilePlus2, Folder, FolderOpen, FolderPlus, List, Network, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import type { OutlineItem } from '../lib/markdown'
 
 export type SidebarTab = 'outline' | 'articles' | 'files'
@@ -17,6 +17,11 @@ interface SidebarProps {
   onOpenFile: (path: string) => void
   onHeadingClick: (item: OutlineItem) => void
   onRequestFocusEditor: () => void
+  folderPath: string | null
+  onCreateEntry: (kind: 'file' | 'folder', parentPath: string | null) => void
+  onRenameEntry: (node: TypeOpenTreeNode) => void
+  onTrashEntry: (node: TypeOpenTreeNode) => void
+  onRefreshFolder: () => void
 }
 
 function containsPath(node: TypeOpenTreeNode, targetPath: string): boolean {
@@ -27,7 +32,21 @@ function navigationScrollBehavior(): ScrollBehavior {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
 }
 
-function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, onOpenFile }: { node: TypeOpenTreeNode; currentFilePath: string | null; revealFilePath: string | null; revealRequest: number; onOpenFile: (path: string) => void }) {
+type SortMode = 'name-asc' | 'name-desc' | 'modified-desc' | 'modified-asc'
+
+function sortNodes(nodes: TypeOpenTreeNode[], mode: SortMode): TypeOpenTreeNode[] {
+  const direction = mode.endsWith('desc') ? -1 : 1
+  return [...nodes].map((node) => ({ ...node, children: node.children ? sortNodes(node.children, mode) : undefined })).sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+    if (mode.startsWith('modified')) {
+      const difference = (a.modifiedAt ?? 0) - (b.modifiedAt ?? 0)
+      if (difference !== 0) return difference * direction
+    }
+    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }) * direction
+  })
+}
+
+function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, selectedPath, onSelect, onOpenFile }: { node: TypeOpenTreeNode; currentFilePath: string | null; revealFilePath: string | null; revealRequest: number; selectedPath: string | null; onSelect: (node: TypeOpenTreeNode) => void; onOpenFile: (path: string) => void }) {
   const [expanded, setExpanded] = useState(true)
   const rowRef = useRef<HTMLButtonElement>(null)
   const containsReveal = Boolean(revealFilePath && containsPath(node, revealFilePath))
@@ -45,17 +64,17 @@ function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, onOpen
   if (node.type === 'directory') {
     return (
       <div className="tree-node directory">
-        <button className="tree-row" onClick={() => setExpanded((value) => !value)} title={node.path}>
+        <button className={`tree-row ${selectedPath === node.path ? 'selected' : ''}`} onClick={() => { onSelect(node); setExpanded((value) => !value) }} title={node.path}>
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           {expanded ? <FolderOpen size={15} /> : <Folder size={15} />}
           <span>{node.name}</span>
         </button>
-        {expanded && <div className="tree-children">{node.children?.map((child) => <TreeNode key={child.path} node={child} currentFilePath={currentFilePath} revealFilePath={revealFilePath} revealRequest={revealRequest} onOpenFile={onOpenFile} />)}</div>}
+        {expanded && <div className="tree-children">{node.children?.map((child) => <TreeNode key={child.path} node={child} currentFilePath={currentFilePath} revealFilePath={revealFilePath} revealRequest={revealRequest} selectedPath={selectedPath} onSelect={onSelect} onOpenFile={onOpenFile} />)}</div>}
       </div>
     )
   }
   return (
-    <button ref={rowRef} className={`tree-row file ${currentFilePath === node.path ? 'active' : ''}`} onClick={() => onOpenFile(node.path)} title={node.path}>
+    <button ref={rowRef} className={`tree-row file ${currentFilePath === node.path ? 'active' : ''} ${selectedPath === node.path ? 'selected' : ''}`} onClick={() => { onSelect(node); onOpenFile(node.path) }} title={node.path}>
       <span className="tree-spacer" />
       <File size={14} />
       <span>{node.name}</span>
@@ -63,9 +82,12 @@ function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, onOpen
   )
 }
 
-export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onHeadingClick, onRequestFocusEditor }: SidebarProps) {
+export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onHeadingClick, onRequestFocusEditor, folderPath, onCreateEntry, onRenameEntry, onTrashEntry, onRefreshFolder }: SidebarProps) {
   const sidebarRef = useRef<HTMLElement>(null)
   const outlineRef = useRef<HTMLDivElement>(null)
+  const [selectedNode, setSelectedNode] = useState<TypeOpenTreeNode | null>(null)
+  const [sortMode, setSortMode] = useState<SortMode>('name-asc')
+  const sortedTree = useMemo(() => sortNodes(fileTree, sortMode), [fileTree, sortMode])
   const articles = useMemo(() => {
     const flattened: TypeOpenTreeNode[] = []
     const visit = (nodes: TypeOpenTreeNode[]) => nodes.forEach((node) => {
@@ -118,8 +140,22 @@ export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug,
         )}
         {tab === 'files' && (
           <div className="file-tree sidebar-panel">
+            <div className="file-tree-toolbar">
+              <button onClick={() => onCreateEntry('file', selectedNode?.type === 'directory' ? selectedNode.path : folderPath)} disabled={!folderPath} title="New Markdown file"><FilePlus2 size={14} /></button>
+              <button onClick={() => onCreateEntry('folder', selectedNode?.type === 'directory' ? selectedNode.path : folderPath)} disabled={!folderPath} title="New folder"><FolderPlus size={14} /></button>
+              <button onClick={onRefreshFolder} disabled={!folderPath} title="Refresh folder"><RefreshCw size={14} /></button>
+              <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} aria-label="Sort files">
+                <option value="name-asc">Name ↑</option>
+                <option value="name-desc">Name ↓</option>
+                <option value="modified-desc">Modified ↓</option>
+                <option value="modified-asc">Modified ↑</option>
+              </select>
+              <span className="file-tree-toolbar-spacer" />
+              <button onClick={() => selectedNode && onRenameEntry(selectedNode)} disabled={!selectedNode} title="Rename selected"><Pencil size={14} /></button>
+              <button onClick={() => selectedNode && onTrashEntry(selectedNode)} disabled={!selectedNode} title="Move selected to Trash"><Trash2 size={14} /></button>
+            </div>
             {fileTree.length === 0 && <div className="sidebar-empty">Open a folder to browse files</div>}
-            {fileTree.map((node) => <TreeNode key={node.path} node={node} currentFilePath={currentFilePath} revealFilePath={revealFilePath} revealRequest={revealRequest} onOpenFile={onOpenFile} />)}
+            {sortedTree.map((node) => <TreeNode key={node.path} node={node} currentFilePath={currentFilePath} revealFilePath={revealFilePath} revealRequest={revealRequest} selectedPath={selectedNode?.path ?? null} onSelect={setSelectedNode} onOpenFile={onOpenFile} />)}
           </div>
         )}
       </div>

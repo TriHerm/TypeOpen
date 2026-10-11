@@ -1,4 +1,5 @@
 import AppKit
+import Dispatch
 import Foundation
 import UniformTypeIdentifiers
 import WebKit
@@ -18,6 +19,8 @@ private let blockedImageDataURL = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAA
 private let globalSearchMaxResults = 250
 private let globalSearchMaxFileBytes = 2 * 1024 * 1024
 private let maxThemeCSSBytes = 512 * 1024
+private let maxRecoveryBytes = 16 * 1024 * 1024
+private let maxRecoveryDocuments = 20
 
 struct NativeDocumentState {
     var filePath: String?
@@ -38,11 +41,26 @@ enum TypeOpenNativeError: LocalizedError {
     }
 }
 
-struct NativePathSnapshot: Equatable {
-    let realPath: String
-    let device: dev_t
-    let inode: ino_t
-    let fileType: mode_t
+private final class NativeDocumentWatcher {
+    private let descriptor: Int32
+    private let source: DispatchSourceFileSystemObject
+
+    init(path: String, onChange: @escaping () -> Void) throws {
+        descriptor = Darwin.open(path, O_EVTONLY | O_CLOEXEC | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw posixFailure("Watching local document") }
+        source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor,
+            eventMask: [.write, .delete, .rename, .attrib, .extend],
+            queue: .main
+        )
+        source.setEventHandler(handler: onChange)
+        source.setCancelHandler { [descriptor] in Darwin.close(descriptor) }
+        source.resume()
+    }
+
+    func cancel() {
+        source.cancel()
+    }
 }
 
 func nativePathSnapshot(_ path: String, rejectSymbolicLink: Bool, requiredType: mode_t? = nil) -> NativePathSnapshot? {
@@ -62,6 +80,40 @@ private func fileStatusMatchesSnapshot(_ status: stat, _ snapshot: NativePathSna
     (status.st_mode & mode_t(S_IFMT)) == snapshot.fileType &&
         status.st_dev == snapshot.device &&
         status.st_ino == snapshot.inode
+}
+
+struct NativeFileRevision: Equatable {
+    let device: dev_t
+    let inode: ino_t
+    let fileType: mode_t
+    let size: off_t
+    let modificationSeconds: Int
+    let modificationNanoseconds: Int
+}
+
+func nativeFileRevision(_ path: String, rejectSymbolicLink: Bool = true) -> NativeFileRevision? {
+    var linkStatus = stat()
+    guard lstat(path, &linkStatus) == 0 else { return nil }
+    if rejectSymbolicLink, (linkStatus.st_mode & mode_t(S_IFMT)) == mode_t(S_IFLNK) { return nil }
+    var status = stat()
+    guard stat(path, &status) == 0 else { return nil }
+    return NativeFileRevision(
+        device: status.st_dev,
+        inode: status.st_ino,
+        fileType: status.st_mode & mode_t(S_IFMT),
+        size: status.st_size,
+        modificationSeconds: Int(status.st_mtimespec.tv_sec),
+        modificationNanoseconds: Int(status.st_mtimespec.tv_nsec)
+    )
+}
+
+private func fileStatusMatchesRevision(_ status: stat, _ revision: NativeFileRevision) -> Bool {
+    status.st_dev == revision.device &&
+        status.st_ino == revision.inode &&
+        (status.st_mode & mode_t(S_IFMT)) == revision.fileType &&
+        status.st_size == revision.size &&
+        Int(status.st_mtimespec.tv_sec) == revision.modificationSeconds &&
+        Int(status.st_mtimespec.tv_nsec) == revision.modificationNanoseconds
 }
 
 private func posixFailure(_ operation: String) -> TypeOpenNativeError {
@@ -211,13 +263,15 @@ private func writeAll(_ fd: Int32, data: Data) throws {
     }
 }
 
-func atomicReplaceBoundFile(target: NativePathSnapshot, root: NativePathSnapshot, data: Data) throws {
+func atomicReplaceBoundFile(target: NativePathSnapshot, root: NativePathSnapshot, data: Data, expectedRevision: NativeFileRevision? = nil) throws {
     let parent = try openBoundParent(root: root, targetRealPath: target.realPath)
     defer { Darwin.close(parent.fd) }
 
     var existing = stat()
     let existingResult = parent.leaf.withCString { fstatat(parent.fd, $0, &existing, AT_SYMLINK_NOFOLLOW) }
-    guard existingResult == 0, fileStatusMatchesSnapshot(existing, target) else {
+    guard existingResult == 0,
+          fileStatusMatchesSnapshot(existing, target),
+          expectedRevision.map({ fileStatusMatchesRevision(existing, $0) }) ?? true else {
         throw TypeOpenNativeError.message("Local file changed before it could be written.")
     }
 
@@ -239,7 +293,9 @@ func atomicReplaceBoundFile(target: NativePathSnapshot, root: NativePathSnapshot
 
     var beforeRename = stat()
     let beforeRenameResult = parent.leaf.withCString { fstatat(parent.fd, $0, &beforeRename, AT_SYMLINK_NOFOLLOW) }
-    guard beforeRenameResult == 0, fileStatusMatchesSnapshot(beforeRename, target) else {
+    guard beforeRenameResult == 0,
+          fileStatusMatchesSnapshot(beforeRename, target),
+          expectedRevision.map({ fileStatusMatchesRevision(beforeRename, $0) }) ?? true else {
         throw TypeOpenNativeError.message("Local file changed while it was being written.")
     }
     let renameResult = temporary.withCString { tempName in
@@ -323,6 +379,9 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     private var rendererIsReady = false
     private var pendingOpenPaths: [String] = []
     private var renderJobs: [UUID: RenderJob] = [:]
+    private var documentWatchers: [String: [NativeDocumentWatcher]] = [:]
+    private var openDocumentWatchPaths = Set<String>()
+    private var documentContentFingerprints: [String: UInt64] = [:]
     private(set) var documentState = NativeDocumentState()
 
     var onCloseAfterSave: (() -> Void)?
@@ -391,6 +450,237 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         sendJavaScript(function: "__typeopenDispatchFileChanged", payload: ["filePath": filePath])
     }
 
+    private func cancelDocumentWatchers(_ filePath: String) {
+        documentWatchers.removeValue(forKey: filePath)?.forEach { $0.cancel() }
+    }
+
+    private func contentFingerprint(_ content: String) -> UInt64 {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in content.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return hash
+    }
+
+    private func stableDocumentContent(_ filePath: String) throws -> (snapshot: NativePathSnapshot, content: String) {
+        guard let snapshot = nativePathSnapshot(filePath, rejectSymbolicLink: true) else {
+            throw TypeOpenNativeError.message("Document changed on disk.")
+        }
+        let content: String
+        if URL(fileURLWithPath: filePath).pathExtension.lowercased() == "textbundle" {
+            content = try readDocument(filePath, expectedSnapshot: snapshot)
+        } else {
+            guard snapshot.fileType == mode_t(S_IFREG) else { throw TypeOpenNativeError.message("Document is not a regular local file.") }
+            content = try readStableTextFile(snapshot)
+        }
+        guard nativePathSnapshot(filePath, rejectSymbolicLink: true) == snapshot else {
+            throw TypeOpenNativeError.message("Document changed while it was being read.")
+        }
+        return (snapshot, content)
+    }
+
+    private func watcherPaths(for filePath: String) -> [String] {
+        if URL(fileURLWithPath: filePath).pathExtension.lowercased() == "textbundle" {
+            guard let resolved = try? resolveTextBundlePayloadSnapshot(filePath) else { return [filePath] }
+            return [filePath, resolved.payloadPath]
+        }
+        return [filePath]
+    }
+
+    private func armDocumentWatchers(_ filePath: String) {
+        cancelDocumentWatchers(filePath)
+        guard openDocumentWatchPaths.contains(filePath), grants.isDocumentGranted(filePath) else { return }
+        if documentContentFingerprints[filePath] == nil,
+           let current = try? stableDocumentContent(filePath) {
+            documentContentFingerprints[filePath] = contentFingerprint(current.content)
+        }
+        var watchers: [NativeDocumentWatcher] = []
+        do {
+            for watchedPath in watcherPaths(for: filePath) {
+                let watcher = try NativeDocumentWatcher(path: watchedPath) { [weak self] in
+                    self?.handleWatchedDocumentChange(filePath)
+                }
+                watchers.append(watcher)
+            }
+            documentWatchers[filePath] = watchers
+        } catch {
+            watchers.forEach { $0.cancel() }
+        }
+    }
+
+    private func handleWatchedDocumentChange(_ filePath: String) {
+        cancelDocumentWatchers(filePath)
+        guard let expectedFingerprint = documentContentFingerprints[filePath],
+              let current = try? stableDocumentContent(filePath) else {
+            sendFileChanged(filePath)
+            return
+        }
+        if contentFingerprint(current.content) == expectedFingerprint {
+            if !grants.isDocumentGranted(filePath) {
+                _ = try? grants.grantDocument(filePath, expectedSnapshot: current.snapshot)
+            }
+            armDocumentWatchers(filePath)
+        } else {
+            sendFileChanged(filePath)
+        }
+    }
+
+    private func syncDocumentWatchers(_ requestedPaths: [String]) {
+        let next = Set(requestedPaths.compactMap { path -> String? in
+            guard let normalized = normalizedPath(path), grants.isDocumentGranted(normalized) else { return nil }
+            return normalized
+        })
+        for path in openDocumentWatchPaths.subtracting(next) {
+            cancelDocumentWatchers(path)
+            documentContentFingerprints.removeValue(forKey: path)
+        }
+        openDocumentWatchPaths = next
+        for path in next where documentWatchers[path] == nil { armDocumentWatchers(path) }
+    }
+
+    private func prepareOwnDocumentMutation(_ filePath: String) throws {
+        guard let normalized = normalizedPath(filePath), openDocumentWatchPaths.contains(normalized) else { return }
+        if let expectedFingerprint = documentContentFingerprints[normalized] {
+            let current = try stableDocumentContent(normalized)
+            guard contentFingerprint(current.content) == expectedFingerprint else {
+                sendFileChanged(normalized)
+                throw TypeOpenNativeError.message("Document changed on disk. Reload it or use Save As before continuing.")
+            }
+        }
+        cancelDocumentWatchers(normalized)
+    }
+
+    private func recoverWatcherAfterFailedMutation(_ filePath: String) {
+        guard let normalized = normalizedPath(filePath), openDocumentWatchPaths.contains(normalized) else { return }
+        guard grants.isDocumentGranted(normalized),
+              let expectedFingerprint = documentContentFingerprints[normalized],
+              let current = try? stableDocumentContent(normalized),
+              contentFingerprint(current.content) == expectedFingerprint else {
+            sendFileChanged(normalized)
+            return
+        }
+        armDocumentWatchers(normalized)
+    }
+
+    private struct NativeDocumentWriteGuard {
+        let target: NativePathSnapshot
+        let root: NativePathSnapshot
+        let revision: NativeFileRevision
+    }
+
+    private func prepareOwnDocumentWrite(_ filePath: String) throws -> NativeDocumentWriteGuard {
+        guard let normalized = normalizedPath(filePath) else {
+            throw TypeOpenNativeError.message("Document path is invalid.")
+        }
+
+        let target: NativePathSnapshot
+        let root: NativePathSnapshot
+        let revisionBefore: NativeFileRevision
+        if URL(fileURLWithPath: normalized).pathExtension.lowercased() == "textbundle" {
+            let resolved = try resolveTextBundlePayloadSnapshot(normalized)
+            target = resolved.payload
+            root = resolved.bundle
+            guard let revision = nativeFileRevision(resolved.payloadPath) else {
+                throw TypeOpenNativeError.message("TextBundle payload changed before it could be saved.")
+            }
+            revisionBefore = revision
+        } else {
+            guard let documentSnapshot = nativePathSnapshot(normalized, rejectSymbolicLink: true, requiredType: S_IFREG),
+                  let parentSnapshot = nativePathSnapshot(URL(fileURLWithPath: normalized).deletingLastPathComponent().path, rejectSymbolicLink: false, requiredType: S_IFDIR),
+                  let revision = nativeFileRevision(normalized),
+                  isInsideOrEqual(documentSnapshot.realPath, parentSnapshot.realPath) else {
+                throw TypeOpenNativeError.message("Document changed before it could be saved.")
+            }
+            target = documentSnapshot
+            root = parentSnapshot
+            revisionBefore = revision
+        }
+
+        let current = try stableDocumentContent(normalized)
+        if let expectedFingerprint = documentContentFingerprints[normalized], contentFingerprint(current.content) != expectedFingerprint {
+            sendFileChanged(normalized)
+            throw TypeOpenNativeError.message("Document changed on disk. Reload it or use Save As before continuing.")
+        }
+
+        let revisionAfter: NativeFileRevision?
+        if URL(fileURLWithPath: normalized).pathExtension.lowercased() == "textbundle" {
+            revisionAfter = nativeFileRevision(target.realPath)
+        } else {
+            revisionAfter = nativeFileRevision(normalized)
+        }
+        guard revisionAfter == revisionBefore else {
+            sendFileChanged(normalized)
+            throw TypeOpenNativeError.message("Document changed while it was being prepared for saving.")
+        }
+        cancelDocumentWatchers(normalized)
+        return NativeDocumentWriteGuard(target: target, root: root, revision: revisionBefore)
+    }
+
+    private func finishOwnDocumentWrite(_ filePath: String, expectedContent: String) throws {
+        guard let normalized = normalizedPath(filePath) else { return }
+        documentContentFingerprints[normalized] = contentFingerprint(expectedContent)
+        if openDocumentWatchPaths.contains(normalized) { armDocumentWatchers(normalized) }
+        let current = try stableDocumentContent(normalized)
+        guard current.content == expectedContent else {
+            cancelDocumentWatchers(normalized)
+            sendFileChanged(normalized)
+            throw TypeOpenNativeError.message("Document changed on disk immediately after saving.")
+        }
+    }
+
+    private func coordinatedExistingDocumentWrite(_ filePath: String, content: String) throws -> String {
+        var coordinationError: NSError?
+        var operationError: Error?
+        var grantedPath: String?
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        coordinator.coordinate(
+            writingItemAt: URL(fileURLWithPath: filePath),
+            options: .forReplacing,
+            error: &coordinationError
+        ) { _ in
+            do {
+                guard grants.isDocumentGranted(filePath) else {
+                    throw TypeOpenNativeError.message("Document changed after it was authorized for writing.")
+                }
+                let writeGuard = try prepareOwnDocumentWrite(filePath)
+                if filePath.lowercased().hasSuffix(".textbundle") {
+                    try writeTextBundlePayload(
+                        filePath,
+                        content: content,
+                        expectedBundleSnapshot: writeGuard.root,
+                        expectedPayloadSnapshot: writeGuard.target,
+                        expectedPayloadRevision: writeGuard.revision
+                    )
+                } else {
+                    try atomicReplaceBoundFile(
+                        target: writeGuard.target,
+                        root: writeGuard.root,
+                        data: Data(content.utf8),
+                        expectedRevision: writeGuard.revision
+                    )
+                }
+                guard let writtenSnapshot = nativePathSnapshot(filePath, rejectSymbolicLink: true) else {
+                    throw TypeOpenNativeError.message("Saved document could not be verified safely.")
+                }
+                let granted = try grants.grantDocument(filePath, expectedSnapshot: writtenSnapshot)
+                try finishOwnDocumentWrite(granted, expectedContent: content)
+                grantedPath = granted
+            } catch {
+                recoverWatcherAfterFailedMutation(filePath)
+                operationError = error
+            }
+        }
+        if let operationError { throw operationError }
+        if let coordinationError {
+            throw TypeOpenNativeError.message("macOS could not coordinate the document save: \(coordinationError.localizedDescription)")
+        }
+        guard let grantedPath else {
+            throw TypeOpenNativeError.message("Document save did not complete.")
+        }
+        return grantedPath
+    }
+
     private func handleEvent(_ event: String, payload: Any?) {
         switch event {
         case "document-state":
@@ -405,6 +695,8 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
                 title: String(((raw["title"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Untitled").prefix(512)),
                 editorCommandsEnabled: (raw["editorCommandsEnabled"] as? Bool) ?? false
             )
+            let openPaths = (raw["openFilePaths"] as? [String]) ?? []
+            syncDocumentWatchers(openPaths)
             updateWindowDocumentState()
             onDocumentStateChanged?(documentState)
         case "renderer-ready":
@@ -443,6 +735,14 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         case "typeopen:read-file": return try readGrantedDocument(requireString(payload, "Document path is required."))
         case "typeopen:list-folder": return try listGrantedFolder(requireString(payload, "Folder path is required."))
         case "typeopen:search-folder": return try searchGrantedFolder(payload as? [String: Any] ?? [:])
+        case "typeopen:create-entry": return try createFolderEntry(payload: requireDictionary(payload))
+        case "typeopen:rename-entry": return try renameFolderEntry(payload: requireDictionary(payload))
+        case "typeopen:trash-entry": return try trashFolderEntry(payload: requireDictionary(payload))
+        case "typeopen:load-recovery": return try loadRecoverySnapshot()
+        case "typeopen:save-recovery": return try saveRecoverySnapshot(payload: requireDictionary(payload))
+        case "typeopen:clear-recovery":
+            clearRecoverySnapshot()
+            return true
         case "typeopen:save-file": return try writeDocument(payload: requireDictionary(payload), saveAs: false)
         case "typeopen:save-file-as": return try writeDocument(payload: requireDictionary(payload), saveAs: true)
         case "typeopen:duplicate-document": return try duplicateDocument(payload: requireDictionary(payload))
@@ -470,6 +770,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
             }
             return NSWorkspace.shared.open(url)
         case "typeopen:confirm-discard": return confirmDiscard(payload as? [String: Any])
+        case "typeopen:confirm-external-reload": return confirmExternalReload(payload as? [String: Any])
         default: throw TypeOpenNativeError.message("Blocked IPC channel: \(channel)")
         }
     }
@@ -560,21 +861,103 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         return ["name": url.lastPathComponent, "css": try sanitizeThemeCSS(css)]
     }
 
+    private func recoveryFileURL(createDirectory: Bool) throws -> URL {
+        guard let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw TypeOpenNativeError.message("Application Support is unavailable for recovery data.")
+        }
+        let directory = support.appendingPathComponent("TypeOpen", isDirectory: true)
+        if createDirectory {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+        }
+        return directory.appendingPathComponent("recovery-v1.json")
+    }
+
+    private func sanitizedRecoverySnapshot(_ payload: [String: Any]) throws -> [String: Any] {
+        guard (payload["version"] as? NSNumber)?.intValue == 1,
+              let rawDocuments = payload["documents"] as? [[String: Any]],
+              rawDocuments.count <= maxRecoveryDocuments else {
+            throw TypeOpenNativeError.message("Recovery snapshot is invalid.")
+        }
+        var documents: [[String: Any]] = []
+        for raw in rawDocuments {
+            guard let id = raw["id"] as? String, !id.isEmpty, id.utf8.count <= 128,
+                  let markdown = raw["markdown"] as? String else {
+                throw TypeOpenNativeError.message("Recovery snapshot contains an invalid document.")
+            }
+            var document: [String: Any] = ["id": id, "markdown": markdown]
+            if let sourcePath = raw["sourcePath"] as? String, !sourcePath.isEmpty {
+                document["sourcePath"] = String(sourcePath.prefix(4096))
+            }
+            if let suggestedName = raw["suggestedName"] as? String, !suggestedName.isEmpty {
+                document["suggestedName"] = String(suggestedName.prefix(512))
+            }
+            documents.append(document)
+        }
+        var result: [String: Any] = ["version": 1, "documents": documents]
+        if let active = payload["activeDocumentId"] as? String, documents.contains(where: { ($0["id"] as? String) == active }) {
+            result["activeDocumentId"] = active
+        }
+        return result
+    }
+
+    private func saveRecoverySnapshot(payload: [String: Any]) throws -> Bool {
+        let snapshot = try sanitizedRecoverySnapshot(payload)
+        guard let documents = snapshot["documents"] as? [[String: Any]], !documents.isEmpty else {
+            clearRecoverySnapshot()
+            return true
+        }
+        let data = try JSONSerialization.data(withJSONObject: snapshot, options: [.sortedKeys])
+        guard data.count <= maxRecoveryBytes else { throw TypeOpenNativeError.message("Recovery snapshot is too large.") }
+        let url = try recoveryFileURL(createDirectory: true)
+        try data.write(to: url, options: [.atomic])
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        return true
+    }
+
+    private func loadRecoverySnapshot() throws -> Any? {
+        let url = try recoveryFileURL(createDirectory: false)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        guard let size = (attributes[.size] as? NSNumber)?.intValue, size <= maxRecoveryBytes else {
+            clearRecoverySnapshot()
+            return nil
+        }
+        do {
+            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+            guard let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                clearRecoverySnapshot()
+                return nil
+            }
+            return try sanitizedRecoverySnapshot(payload)
+        } catch {
+            clearRecoverySnapshot()
+            return nil
+        }
+    }
+
+    func clearRecoverySnapshot() {
+        guard let url = try? recoveryFileURL(createDirectory: false) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
     private func readGrantedDocument(_ filePath: String) throws -> [String: Any] {
         guard let normalized = normalizedPath(filePath),
-              let before = grants.readableSnapshot(normalized),
+              let before = grants.readableSnapshot(normalized) ?? grants.replacementReadableSnapshot(normalized),
               let identityBefore = nativePathSnapshot(normalized, rejectSymbolicLink: false),
               identityBefore.realPath == before,
-              grants.readableSnapshot(normalized) == before else {
+              (grants.readableSnapshot(normalized) ?? grants.replacementReadableSnapshot(normalized)) == before else {
             throw TypeOpenNativeError.message("Document path has not been granted by the user.")
         }
         let content = try readDocument(normalized, expectedSnapshot: identityBefore)
         guard realPath(normalized) == before,
-              grants.readableSnapshot(normalized) == before,
+              (grants.readableSnapshot(normalized) ?? grants.replacementReadableSnapshot(normalized)) == before,
               nativePathSnapshot(normalized, rejectSymbolicLink: false) == identityBefore else {
             throw TypeOpenNativeError.message("Document path changed while it was being read.")
         }
-        try grants.grantDocument(normalized, expectedRealPath: before)
+        try grants.grantDocument(normalized, expectedSnapshot: identityBefore)
+        documentContentFingerprints[normalized] = contentFingerprint(content)
+        if openDocumentWatchPaths.contains(normalized) { armDocumentWatchers(normalized) }
         noteRecent(normalized)
         return [
             "filePath": normalized,
@@ -603,7 +986,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     private func listDirectory(_ rootPath: String, depth: Int = 0) throws -> [[String: Any]] {
         if depth > 14 { return [] }
         guard let authorizedRoot = grants.getFolderRealPath(), let rootReal = realPath(rootPath), isInsideOrEqual(rootReal, authorizedRoot) else { return [] }
-        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey]
         let urls = try FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: rootPath), includingPropertiesForKeys: Array(keys), options: [.skipsHiddenFiles])
             .filter { $0.lastPathComponent != "node_modules" && $0.lastPathComponent != "Library" }
             .sorted { lhs, rhs in
@@ -618,28 +1001,243 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
             let values = try url.resourceValues(forKeys: keys)
             if values.isSymbolicLink == true { continue }
             guard let candidateReal = realPath(url.path), isInsideOrEqual(candidateReal, authorizedRoot) else { continue }
+            let modifiedAt = values.contentModificationDate.map { Int($0.timeIntervalSince1970 * 1000) } ?? 0
             if values.isDirectory == true && url.pathExtension.lowercased() == "textbundle" {
-                result.append(["type": "file", "name": url.lastPathComponent, "path": url.path])
+                result.append(["type": "file", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt])
             } else if values.isDirectory == true {
-                result.append(["type": "directory", "name": url.lastPathComponent, "path": url.path, "children": try listDirectory(url.path, depth: depth + 1)])
+                result.append(["type": "directory", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt, "children": try listDirectory(url.path, depth: depth + 1)])
             } else if isEditableDocument(url.path) || imageMimeTypes[url.pathExtension.lowercased()] != nil {
-                result.append(["type": "file", "name": url.lastPathComponent, "path": url.path])
+                result.append(["type": "file", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt])
             }
         }
         return result
+    }
+
+    private func validateFolderEntryName(_ raw: Any?, kind: String) throws -> String {
+        guard let raw = raw as? String else { throw TypeOpenNativeError.message("A name is required.") }
+        var name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name != ".", name != "..", !name.contains("/"), !name.contains("\\"), !name.contains("\0"), name.utf8.count <= 255 else {
+            throw TypeOpenNativeError.message("Choose a valid local name.")
+        }
+        if kind == "file", URL(fileURLWithPath: name).pathExtension.isEmpty { name += ".md" }
+        if kind == "file", !markdownExtensions.contains(URL(fileURLWithPath: name).pathExtension.lowercased()) {
+            throw TypeOpenNativeError.message("New files must use a supported Markdown or text extension.")
+        }
+        return name
+    }
+
+    private func grantedFolderDirectorySnapshot(_ path: String) throws -> NativePathSnapshot {
+        guard let rootReal = grants.getFolderRealPath(),
+              grants.canListFolder(path),
+              let snapshot = nativePathSnapshot(path, rejectSymbolicLink: true, requiredType: S_IFDIR),
+              isInsideOrEqual(snapshot.realPath, rootReal) else {
+            throw TypeOpenNativeError.message("Folder path has not been granted by the user.")
+        }
+        return snapshot
+    }
+
+    private func containsOpenDocument(_ path: String) -> Bool {
+        guard let normalized = normalizedPath(path) else { return false }
+        return openDocumentWatchPaths.contains { openPath in
+            guard let normalizedOpen = normalizedPath(openPath) else { return false }
+            return isInsideOrEqual(normalizedOpen, normalized)
+        }
+    }
+
+    private func createFolderEntry(payload: [String: Any]) throws -> [String: Any] {
+        guard let rootPath = grants.getFolder() else { throw TypeOpenNativeError.message("Open a folder before creating items.") }
+        let kind = (payload["kind"] as? String) == "folder" ? "folder" : "file"
+        let parentPath = (payload["parentPath"] as? String) ?? rootPath
+        let parent = try grantedFolderDirectorySnapshot(parentPath)
+        let name = try validateFolderEntryName(payload["name"], kind: kind)
+        let destination = URL(fileURLWithPath: parentPath).appendingPathComponent(name, isDirectory: kind == "folder").standardizedFileURL.path
+        guard isInsideOrEqual(destination, rootPath) else { throw TypeOpenNativeError.message("New item must stay inside the open folder.") }
+
+        if kind == "folder" {
+            let parentFD = try openBoundDirectory(parent)
+            defer { Darwin.close(parentFD) }
+            let result = name.withCString { mkdirat(parentFD, $0, mode_t(0o755)) }
+            if result != 0, errno == EEXIST { throw TypeOpenNativeError.message("An item with that name already exists.") }
+            guard result == 0 else { throw posixFailure("Creating local directory") }
+            guard let created = nativePathSnapshot(destination, rejectSymbolicLink: true, requiredType: S_IFDIR), isInsideOrEqual(created.realPath, parent.realPath) else {
+                throw TypeOpenNativeError.message("Created folder could not be verified safely.")
+            }
+        } else {
+            guard let created = try createBoundFile(directory: parent, fileName: name, data: Data()) else {
+                throw TypeOpenNativeError.message("An item with that name already exists.")
+            }
+            _ = try grants.grantDocument(destination, expectedSnapshot: created)
+        }
+        return ["path": destination, "kind": kind]
+    }
+
+    private func renameFolderEntry(payload: [String: Any]) throws -> [String: Any] {
+        guard let rootPath = grants.getFolder(), let rootReal = grants.getFolderRealPath(), let sourcePath = payload["path"] as? String,
+              let normalizedSource = normalizedPath(sourcePath), normalizedSource != rootPath,
+              let source = nativePathSnapshot(normalizedSource, rejectSymbolicLink: true),
+              isInsideOrEqual(source.realPath, rootReal) else {
+            throw TypeOpenNativeError.message("Item is outside the open folder or is no longer safe to rename.")
+        }
+        let kind = source.fileType == mode_t(S_IFDIR) ? "folder" : "file"
+        if kind == "folder", containsOpenDocument(normalizedSource) {
+            throw TypeOpenNativeError.message("Close documents inside this folder before renaming it.")
+        }
+        let name = try validateFolderEntryName(payload["name"], kind: kind)
+        let parentPath = URL(fileURLWithPath: normalizedSource).deletingLastPathComponent().path
+        let parent = try grantedFolderDirectorySnapshot(parentPath)
+        let destination = URL(fileURLWithPath: parentPath).appendingPathComponent(name, isDirectory: kind == "folder").standardizedFileURL.path
+        if destination == normalizedSource { return ["path": normalizedSource, "previousPath": normalizedSource, "kind": kind] }
+
+        let parentFD = try openBoundDirectory(parent)
+        defer { Darwin.close(parentFD) }
+        let oldName = URL(fileURLWithPath: normalizedSource).lastPathComponent
+        do {
+            try prepareOwnDocumentMutation(normalizedSource)
+            let result = oldName.withCString { oldPointer in
+                name.withCString { newPointer in
+                    renameatx_np(parentFD, oldPointer, parentFD, newPointer, UInt32(RENAME_EXCL))
+                }
+            }
+            if result != 0, errno == EEXIST { throw TypeOpenNativeError.message("An item with that name already exists.") }
+            guard result == 0 else { throw posixFailure("Renaming local item") }
+
+            var renamedStatus = stat()
+            let renamedStatusResult = name.withCString { newPointer in
+                fstatat(parentFD, newPointer, &renamedStatus, AT_SYMLINK_NOFOLLOW)
+            }
+            guard renamedStatusResult == 0, fileStatusMatchesSnapshot(renamedStatus, source) else {
+                throw TypeOpenNativeError.message("Renamed item identity changed before it could be verified.")
+            }
+        } catch {
+            recoverWatcherAfterFailedMutation(normalizedSource)
+            throw error
+        }
+
+        grants.revokeDocument(normalizedSource)
+        if kind == "file", isEditableDocument(destination) {
+            let expectedRenamed = NativePathSnapshot(
+                realPath: URL(fileURLWithPath: parent.realPath).appendingPathComponent(name).standardizedFileURL.path,
+                device: source.device,
+                inode: source.inode,
+                fileType: source.fileType
+            )
+            guard nativePathSnapshot(parentPath, rejectSymbolicLink: true, requiredType: S_IFDIR) == parent else {
+                throw TypeOpenNativeError.message("Renamed document could not be verified safely.")
+            }
+            _ = try grants.grantDocument(
+                destination,
+                expectedSnapshot: expectedRenamed,
+                expectedParentSnapshot: parent
+            )
+        }
+        return ["path": destination, "previousPath": normalizedSource, "kind": kind]
+    }
+
+    private func trashDestinationName(_ originalName: String, attempt: Int) -> String {
+        guard attempt > 0 else { return originalName }
+        let url = URL(fileURLWithPath: originalName)
+        let ext = url.pathExtension
+        guard !ext.isEmpty else { return "\(originalName) \(attempt)" }
+        let stem = url.deletingPathExtension().lastPathComponent
+        return "\(stem) \(attempt).\(ext)"
+    }
+
+    private func moveBoundItemToUserTrash(_ source: NativePathSnapshot, folderRoot: NativePathSnapshot) throws {
+        let sourceParent = try openBoundParent(root: folderRoot, targetRealPath: source.realPath)
+        defer { Darwin.close(sourceParent.fd) }
+        var sourceStatus = stat()
+        let sourceStatusResult = sourceParent.leaf.withCString { fstatat(sourceParent.fd, $0, &sourceStatus, AT_SYMLINK_NOFOLLOW) }
+        guard sourceStatusResult == 0, fileStatusMatchesSnapshot(sourceStatus, source) else {
+            throw TypeOpenNativeError.message("Item changed before it could be moved to Trash.")
+        }
+
+        let trashPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash", isDirectory: true).path
+        guard let trashSnapshot = nativePathSnapshot(trashPath, rejectSymbolicLink: true, requiredType: S_IFDIR) else {
+            throw TypeOpenNativeError.message("The user Trash directory is not available safely.")
+        }
+        let trashFD = try openBoundDirectory(trashSnapshot)
+        defer { Darwin.close(trashFD) }
+
+        for attempt in 0..<10_000 {
+            let destinationName = trashDestinationName(sourceParent.leaf, attempt: attempt)
+            let result = sourceParent.leaf.withCString { sourceName in
+                destinationName.withCString { destinationNamePointer in
+                    renameatx_np(sourceParent.fd, sourceName, trashFD, destinationNamePointer, UInt32(RENAME_EXCL))
+                }
+            }
+            if result == 0 { return }
+            if errno == EEXIST { continue }
+            if errno == EXDEV {
+                throw TypeOpenNativeError.message("This item is on a different volume and cannot be moved atomically to the user Trash yet.")
+            }
+            throw posixFailure("Moving local item to Trash")
+        }
+        throw TypeOpenNativeError.message("Could not choose a collision-free name in Trash.")
+    }
+
+    private func trashFolderEntry(payload: [String: Any]) throws -> [String: Any] {
+        guard let rootPath = grants.getFolder(), let rootReal = grants.getFolderRealPath(), let sourcePath = payload["path"] as? String,
+              let normalizedSource = normalizedPath(sourcePath), normalizedSource != rootPath,
+              let before = nativePathSnapshot(normalizedSource, rejectSymbolicLink: true),
+              isInsideOrEqual(before.realPath, rootReal) else {
+            throw TypeOpenNativeError.message("Item is outside the open folder or is no longer safe to move to Trash.")
+        }
+        if containsOpenDocument(normalizedSource) {
+            throw TypeOpenNativeError.message("Close open documents inside this item before moving it to Trash.")
+        }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Move “\(URL(fileURLWithPath: normalizedSource).lastPathComponent)” to Trash?"
+        alert.informativeText = "The item will leave the open folder and can be restored from the Trash."
+        alert.addButton(withTitle: "Move to Trash")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return ["path": normalizedSource, "trashed": false] }
+        if containsOpenDocument(normalizedSource) {
+            throw TypeOpenNativeError.message("Close open documents inside this item before moving it to Trash.")
+        }
+        guard let currentRootPath = grants.getFolder(),
+              let folderRoot = nativePathSnapshot(currentRootPath, rejectSymbolicLink: true, requiredType: S_IFDIR),
+              folderRoot.realPath == rootReal,
+              nativePathSnapshot(normalizedSource, rejectSymbolicLink: true) == before else {
+            throw TypeOpenNativeError.message("Item changed before it could be moved to Trash.")
+        }
+        try moveBoundItemToUserTrash(before, folderRoot: folderRoot)
+        grants.revokeDocument(normalizedSource)
+        return ["path": normalizedSource, "trashed": true]
+    }
+
+    private struct FolderSearchPattern {
+        let expression: NSRegularExpression
+    }
+
+    private func makeFolderSearchPattern(_ payload: [String: Any]) throws -> FolderSearchPattern? {
+        guard let query = payload["query"] as? String, !query.isEmpty else { return nil }
+        let matchCase = (payload["matchCase"] as? Bool) ?? false
+        let wholeWord = (payload["wholeWord"] as? Bool) ?? false
+        let useRegex = (payload["regex"] as? Bool) ?? false
+        var source = useRegex ? query : NSRegularExpression.escapedPattern(for: query)
+        if wholeWord {
+            source = "(?<![\\p{L}\\p{N}_])(?:\(source))(?![\\p{L}\\p{N}_])"
+        }
+        do {
+            return FolderSearchPattern(expression: try NSRegularExpression(pattern: source, options: matchCase ? [] : [.caseInsensitive]))
+        } catch {
+            throw TypeOpenNativeError.message("Invalid regular expression: \(error.localizedDescription)")
+        }
     }
 
     private func searchGrantedFolder(_ payload: [String: Any]) throws -> [String: Any] {
         guard let folderPath = grants.getFolder(), let query = payload["query"] as? String, !query.isEmpty else {
             return ["results": [], "truncated": false]
         }
+        guard let pattern = try makeFolderSearchPattern(payload) else { return ["results": [], "truncated": false] }
         guard grants.canListFolder(folderPath),
               let identityBefore = nativePathSnapshot(folderPath, rejectSymbolicLink: false, requiredType: S_IFDIR),
               grants.canListFolder(folderPath) else {
             throw TypeOpenNativeError.message("Folder path has not been granted by the user.")
         }
         var results: [[String: Any]] = []
-        try searchFolder(folderPath, authorizedRoot: identityBefore, query: query, matchCase: (payload["matchCase"] as? Bool) ?? false, results: &results)
+        try searchFolder(folderPath, authorizedRoot: identityBefore, pattern: pattern, queryLength: query.count, results: &results)
         guard realPath(folderPath) == identityBefore.realPath,
               grants.canListFolder(folderPath),
               nativePathSnapshot(folderPath, rejectSymbolicLink: false, requiredType: S_IFDIR) == identityBefore else {
@@ -648,7 +1246,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         return ["results": results, "truncated": results.count >= globalSearchMaxResults]
     }
 
-    private func searchFolder(_ rootPath: String, authorizedRoot: NativePathSnapshot, query: String, matchCase: Bool, results: inout [[String: Any]]) throws {
+    private func searchFolder(_ rootPath: String, authorizedRoot: NativePathSnapshot, pattern: FolderSearchPattern, queryLength: Int, results: inout [[String: Any]]) throws {
         guard results.count < globalSearchMaxResults,
               grants.getFolderRealPath() == authorizedRoot.realPath,
               let rootReal = realPath(rootPath),
@@ -664,29 +1262,30 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
 
             if values?.isDirectory == true && url.pathExtension.lowercased() == "textbundle" {
                 if let content = try? readTextBundlePayload(url.path, authorizedRootSnapshot: authorizedRoot, maximumBytes: globalSearchMaxFileBytes) {
-                    appendSearchMatches(filePath: url.path, relativePath: relativePath(url.path, to: grants.getFolder() ?? rootPath), content: content, query: query, matchCase: matchCase, results: &results)
+                    appendSearchMatches(filePath: url.path, relativePath: relativePath(url.path, to: grants.getFolder() ?? rootPath), content: content, pattern: pattern, queryLength: queryLength, results: &results)
                 }
             } else if values?.isDirectory == true {
-                try searchFolder(url.path, authorizedRoot: authorizedRoot, query: query, matchCase: matchCase, results: &results)
+                try searchFolder(url.path, authorizedRoot: authorizedRoot, pattern: pattern, queryLength: queryLength, results: &results)
             } else if markdownExtensions.contains(url.pathExtension.lowercased()),
                       let candidate = nativePathSnapshot(url.path, rejectSymbolicLink: true, requiredType: S_IFREG),
                       isInsideOrEqual(candidate.realPath, authorizedRoot.realPath),
                       let content = try? readStableTextFile(candidate, authorizedRoot: authorizedRoot, maximumBytes: globalSearchMaxFileBytes) {
-                appendSearchMatches(filePath: url.path, relativePath: relativePath(url.path, to: grants.getFolder() ?? rootPath), content: content, query: query, matchCase: matchCase, results: &results)
+                appendSearchMatches(filePath: url.path, relativePath: relativePath(url.path, to: grants.getFolder() ?? rootPath), content: content, pattern: pattern, queryLength: queryLength, results: &results)
             }
         }
     }
 
-    private func appendSearchMatches(filePath: String, relativePath: String, content: String, query: String, matchCase: Bool, results: inout [[String: Any]]) {
-        let needle = matchCase ? query : query.lowercased()
+    private func appendSearchMatches(filePath: String, relativePath: String, content: String, pattern: FolderSearchPattern, queryLength: Int, results: inout [[String: Any]]) {
         for (index, rawLine) in content.components(separatedBy: .newlines).enumerated() {
             if results.count >= globalSearchMaxResults { return }
-            let haystack = matchCase ? rawLine : rawLine.lowercased()
-            guard let range = haystack.range(of: needle) else { continue }
-            let column = haystack.distance(from: haystack.startIndex, to: range.lowerBound)
+            let lineRange = NSRange(location: 0, length: (rawLine as NSString).length)
+            guard let match = pattern.expression.firstMatch(in: rawLine, range: lineRange), match.range.length > 0 else { continue }
+            let utf16Column = match.range.location
             let characters = Array(rawLine)
-            let start = max(0, column - 60)
-            let end = min(characters.count, column + query.count + 100)
+            let characterColumn = rawLine.distance(from: rawLine.startIndex, to: String.Index(utf16Offset: utf16Column, in: rawLine))
+            let matchedLength = max(1, rawLine.distance(from: String.Index(utf16Offset: match.range.location, in: rawLine), to: String.Index(utf16Offset: match.range.location + match.range.length, in: rawLine)))
+            let start = max(0, characterColumn - 60)
+            let end = min(characters.count, characterColumn + max(matchedLength, queryLength) + 100)
             let preview = String(characters[start..<end]).replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
             results.append([
                 "filePath": filePath,
@@ -733,22 +1332,33 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         }
         guard let destination else { return nil }
 
+        if !saveAs {
+            let granted = try coordinatedExistingDocumentWrite(destination, content: content)
+            noteRecent(granted)
+            return ["filePath": granted]
+        }
+
         if destination.lowercased().hasSuffix(".textbundle") {
             if FileManager.default.fileExists(atPath: destination) {
                 guard let expectedBundle = nativePathSnapshot(destination, rejectSymbolicLink: true, requiredType: S_IFDIR) else {
                     throw TypeOpenNativeError.message("TextBundle must be a safe directory package.")
                 }
-                if !saveAs, !grants.isDocumentGranted(destination) {
-                    throw TypeOpenNativeError.message("TextBundle changed after it was authorized for writing.")
-                }
-                try writeTextBundlePayload(destination, content: content, expectedBundleSnapshot: expectedBundle)
+                try writeTextBundlePayload(
+                    destination,
+                    content: content,
+                    expectedBundleSnapshot: expectedBundle
+                )
             } else {
                 try createTextBundle(destination, content: content)
             }
         } else {
             try content.write(toFile: destination, atomically: true, encoding: .utf8)
         }
-        let granted = try grants.grantDocument(destination)
+        guard let writtenSnapshot = nativePathSnapshot(destination, rejectSymbolicLink: true) else {
+            throw TypeOpenNativeError.message("Saved document could not be verified safely.")
+        }
+        let granted = try grants.grantDocument(destination, expectedSnapshot: writtenSnapshot)
+        try finishOwnDocumentWrite(granted, expectedContent: content)
         noteRecent(granted)
         return ["filePath": granted]
     }
@@ -800,7 +1410,13 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
             throw TypeOpenNativeError.message("Rename keeps the document in its current folder. Use Move To for another folder.")
         }
         if normalizedPath(destinationURL.path) == normalizedPath(sourcePath) { return ["filePath": sourcePath] }
-        try moveDocumentPath(sourcePath, destinationURL.path)
+        do {
+            try prepareOwnDocumentMutation(sourcePath)
+            try moveDocumentPath(sourcePath, destinationURL.path)
+        } catch {
+            recoverWatcherAfterFailedMutation(sourcePath)
+            throw error
+        }
         grants.revokeDocument(sourcePath)
         let destination = try grants.grantDocument(destinationURL.path)
         noteRecent(destination)
@@ -821,7 +1437,13 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         guard panel.runModal() == .OK, let directory = panel.url else { return nil }
         let destinationURL = directory.appendingPathComponent(URL(fileURLWithPath: sourcePath).lastPathComponent)
         if normalizedPath(destinationURL.path) == normalizedPath(sourcePath) { return ["filePath": sourcePath] }
-        try moveDocumentPath(sourcePath, destinationURL.path)
+        do {
+            try prepareOwnDocumentMutation(sourcePath)
+            try moveDocumentPath(sourcePath, destinationURL.path)
+        } catch {
+            recoverWatcherAfterFailedMutation(sourcePath)
+            throw error
+        }
         grants.revokeDocument(sourcePath)
         let destination = try grants.grantDocument(destinationURL.path)
         noteRecent(destination)
@@ -919,13 +1541,25 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         return content
     }
 
-    private func writeTextBundlePayload(_ bundlePath: String, content: String, expectedBundleSnapshot: NativePathSnapshot? = nil) throws {
+    private func writeTextBundlePayload(
+        _ bundlePath: String,
+        content: String,
+        expectedBundleSnapshot: NativePathSnapshot? = nil,
+        expectedPayloadSnapshot: NativePathSnapshot? = nil,
+        expectedPayloadRevision: NativeFileRevision? = nil
+    ) throws {
         let resolved = try resolveTextBundlePayloadSnapshot(bundlePath, expectedBundleSnapshot: expectedBundleSnapshot)
         guard nativePathSnapshot(bundlePath, rejectSymbolicLink: true, requiredType: S_IFDIR) == resolved.bundle,
-              nativePathSnapshot(resolved.payloadPath, rejectSymbolicLink: true, requiredType: S_IFREG) == resolved.payload else {
+              nativePathSnapshot(resolved.payloadPath, rejectSymbolicLink: true, requiredType: S_IFREG) == resolved.payload,
+              expectedPayloadSnapshot.map({ $0 == resolved.payload }) ?? true else {
             throw TypeOpenNativeError.message("TextBundle changed before its text payload could be written.")
         }
-        try atomicReplaceBoundFile(target: resolved.payload, root: resolved.bundle, data: Data(content.utf8))
+        try atomicReplaceBoundFile(
+            target: resolved.payload,
+            root: resolved.bundle,
+            data: Data(content.utf8),
+            expectedRevision: expectedPayloadRevision
+        )
         guard nativePathSnapshot(bundlePath, rejectSymbolicLink: true, requiredType: S_IFDIR) == resolved.bundle,
               let payloadAfter = nativePathSnapshot(resolved.payloadPath, rejectSymbolicLink: true, requiredType: S_IFREG),
               isInsideOrEqual(payloadAfter.realPath, resolved.bundle.realPath) else {
@@ -1217,6 +1851,24 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         case .alertSecondButtonReturn: return "discard"
         default: return "cancel"
         }
+    }
+
+    private func confirmExternalReload(_ payload: [String: Any]?) -> String {
+        let title = (payload?["title"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? documentState.title
+        let hasUnsavedChanges = (payload?["dirty"] as? Bool) ?? false
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "“\(title)” changed on disk."
+        alert.informativeText = hasUnsavedChanges
+            ? "Reloading will discard the changes currently in TypeOpen. You can Save As first to preserve them."
+            : "Reload the latest version from disk?"
+        alert.addButton(withTitle: "Reload from Disk")
+        if hasUnsavedChanges { alert.addButton(withTitle: "Save As…") }
+        alert.addButton(withTitle: "Cancel")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn { return "reload" }
+        if hasUnsavedChanges, response == .alertSecondButtonReturn { return "save-as" }
+        return "cancel"
     }
 }
 

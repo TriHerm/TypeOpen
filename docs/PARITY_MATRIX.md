@@ -11,16 +11,16 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Live rendered Markdown editing | shipped document/editor surfaces | Implemented | MDXEditor/Lexical, Markdown in/out, no proprietary editor code |
 | Markdown/text files | plist document registrations | Implemented | Open/save/save-as and macOS file associations |
 | TextBundle packages | plist editable TextBundle document role | Implemented | `.textbundle` is a macOS package association; payload-only saves preserve metadata/assets and Save As can create a new bundle |
-| Open folder / file tree | static sidebar/file-library resources | Implemented | Recursive Markdown/text tree and article list |
+| Open folder / file tree | static sidebar/file-library resources | Partial | Recursive Markdown/text tree and article list; native runtime adds create file/folder, rename, Move to Trash, refresh, and name/modified sorting. Hidden-file/glob configuration, pinning, creation-date sorting, grouping and other library controls remain |
 | Recent/reopen/quick file workflows | static File menu resources | Implemented | Native recent documents, renderer closed-file history, and filename-only quick open over the current folder |
 | Duplicate / Rename / Move To | static File menu resources | Implemented | Saved local documents only; tab paths update after filesystem operations and TextBundle packages move/copy as complete directories |
-| Outline | static Outline resources | Implemented | H1-H6 extraction/navigation plus current-section highlighting while the editor scrolls |
+| Outline | static Outline resources | Partial | H1-H6 extraction/navigation plus current-section highlighting while the editor scrolls. Reference collapse-all/expand-all, collapsible/flat modes and chapter-level controls remain |
 | Source Code Mode | static View command | Implemented | CodeMirror-backed source view via MDXEditor |
 | Read-only Mode | static View command | Implemented | Toggle in UI/menu command |
 | Focus Mode | static View command/preferences | Implemented | Dims non-current top-level editor blocks |
 | Typewriter Mode | static View command/preferences | Implemented | Keeps active block centered while caret moves |
-| Find / Replace | static Edit resources | Implemented | Literal, case-sensitive option, next/previous/replace/all |
-| Global folder search | static global Search action | Implemented | Recursive literal folder search with optional case sensitivity; hidden directories and `node_modules` are excluded |
+| Find / Replace | static Edit resources | Implemented | Literal or regular-expression search, optional case sensitivity and whole-word matching, next/previous/replace/all. Replacement text is literal rather than regex capture expansion |
+| Global folder search | static global Search action | Implemented | Recursive literal or regular-expression folder search with optional case sensitivity/whole-word matching; hidden directories and `node_modules` are excluded and result/file-size caps remain enforced |
 | Headings H1-H6 | static Paragraph menu | Implemented | Insert commands and toolbar block type |
 | Heading level / indent / outdent | static Paragraph menu | Partial | Heading promotion/demotion uses MDXEditor Realm block conversion; indent/outdent use Lexical list commands and intentionally apply only to list items |
 | Quote / lists / tasks | static Paragraph menu | Implemented | Live editor plugins plus insertion commands |
@@ -49,12 +49,32 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Import via Pandoc | static import/Pandoc resources | Implemented when Pandoc exists | DOCX, ODT, RTF, EPUB, LaTeX, RST, Org, OPML candidates |
 | Appearance | static preferences | Implemented | System/light/dark, content width and font size |
 | Spellcheck | static edit/preferences | Implemented | System WebKit/macOS text services and contextual suggestions |
-| Autosave | exact reference recovery semantics unknown | Implemented | Optional debounced save for an existing file |
+| Autosave | exact reference recovery semantics unknown | Implemented | Optional debounced save for an existing file; autosave stops when the native runtime detects an unresolved external-file conflict |
+| Unsaved draft recovery | static recovery/preferences resources | Partial | Dirty/imported buffers are snapshotted privately and recovered after an interrupted session as pathless `Recovered` documents that require explicit Save As. Clean-session file/folder restoration and full reference recovery/version history remain |
+| External file changes / Reload from Disk | static File/resources messages | Implemented in native runtime | Native file watchers mark conflicts, block autosave/normal Save, and offer Reload from Disk or Save As. Existing-file saves use macOS file coordination plus descriptor-bound revision checks; the retained Electron migration fallback does not provide live external-change watching |
 | Tabs / multi-document model | static New Tab / document switching | Implemented | Renderer-owned tabs preserve per-document dirty state, Save All, close prompts and next/previous switching |
 | Native window behavior | shipped macOS window/menu surfaces | Implemented | AppKit traffic lights/full-size titlebar, draggable inert titlebar region, persisted frame size/position, standard Window menu, fullscreen/minimize/zoom and dirty-close lifecycle |
 | Custom themes | static theme preferences | Implemented | Built-in light/dark/system remain available; users can explicitly choose a local CSS file that is size-limited and rejected if it contains external-resource/executable CSS constructs. Reference themes/assets are intentionally not copied |
 | Page Setup | static File menu | Implemented | TypeOpen-owned dialog configures paper size, portrait/landscape orientation, and margins; settings map to `NSPrintInfo` for native PDF export and printing |
 | Pixel-identical native UI | runtime capture blocked | Reference unknown | REA live native UI observation was denied Screen Recording and Accessibility permissions; TypeOpen uses an original UI |
+
+## High-value replacement gaps retained from the reference inventory
+
+These are intentionally tracked even when they are not part of the current implementation stage. They are ordered by replacement value rather than by how many menu items the reference exposes.
+
+| Priority | Reference capability still worth closing | TypeOpen state / intended boundary |
+| --- | --- | --- |
+| Next | Editor auto-pair for brackets/quotes/Markdown markers; smart punctuation and configurable whitespace/line-break behavior | Not implemented; keep Markdown canonical and make each behavior opt-in where it changes persisted text |
+| Next | Code tools: line numbers, default/last-used code language, auto-indent selection/block | Core fenced CodeMirror editing exists; these productivity controls remain |
+| Next | Collapsible/flat outline, Expand All/Collapse All, configurable chapter level | Core outline navigation exists; advanced outline management remains |
+| Next | GitHub-style alerts (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`), HTML blocks and reference-style links | Not implemented as dedicated rich editor primitives yet |
+| Next | Session restore for clean files/folders and stronger recovery/version workflows | Unsaved buffers recover safely today; persisted path authority is deliberately not restored implicitly |
+| Later | Multi-window / Open in New Window | Multi-tab model exists; the native app still centers on one main editing window |
+| Later | Advanced file library: hidden-file toggle, configurable glob patterns, pinned/recent locations, grouping and creation-date sorting | Basic native management and name/modified sorting exist |
+| Later | Advanced image management: configurable asset roots/copy rules, copy/move/rename/delete image assets, syntax switching, zoom/open actions | Safe local image insert/preview and adjacent `assets/` storage exist; cloud/PicGo/PicList integration is intentionally deferred |
+| Later | Export profiles: previous export, headers/footers, heading page breaks, export theme/CSS/templates, destination/post-export actions and richer Pandoc arguments | Core native/Pandoc export exists; profile system remains |
+| Later | Custom shortcuts, richer spellcheck language controls, separate light/dark custom themes and launch behavior preferences | Not required for core Markdown replacement but retained as parity backlog |
+| Deliberately different | Typora licensing/activation/server/update mechanisms | Not a parity target. TypeOpen remains open source and uses GitHub/Homebrew distribution instead |
 
 ## Evidence boundary
 
