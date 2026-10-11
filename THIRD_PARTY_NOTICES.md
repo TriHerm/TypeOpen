@@ -8,6 +8,7 @@ TypeOpen depends on open-source software. The package lock is the authoritative 
 | React / React DOM | renderer UI | MIT |
 | @mdxeditor/editor | Markdown WYSIWYG editor framework | MIT |
 | Lexical / @lexical/list / @lexical/rich-text | editor engine and rich/list primitives | MIT |
+| CodeMirror / @codemirror/* | Source Mode, fenced code editing, Markdown syntax tree and typing keymaps | MIT |
 | KaTeX | math rendering | MIT |
 | Mermaid | diagrams | MIT |
 | flowchart.js | legacy flowchart diagrams | MIT |

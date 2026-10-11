@@ -29,6 +29,7 @@ const DEFAULT_PREFS: TypeOpenPreferences = {
   contentWidth: 780,
   spellCheck: true,
   autosave: false,
+  autoPairBrackets: true,
   statusBar: true,
   toolbar: false,
   sidebarDefault: true
@@ -1030,7 +1031,7 @@ export default function App() {
               <div className="empty-hint" aria-hidden="true"><BookOpen size={28} /><span>Start writing Markdown</span></div>
             )}
             <MarkdownEditor
-              key={`editor-${activeDocumentId}-${sourceMode ? 'source' : 'rich'}`}
+              key={`editor-${activeDocumentId}-${sourceMode ? 'source' : 'rich'}-${preferences.autoPairBrackets ? 'pair' : 'literal'}`}
               ref={editorRef}
               markdown={markdown}
               onChange={(value) => updateDocument(activeDocumentIdRef.current, (document) => ({ ...document, markdown: value }))}
@@ -1041,6 +1042,7 @@ export default function App() {
               imageUpload={uploadImage}
               imagePreview={previewImage}
               toolbarVisible={preferences.toolbar}
+              autoPairBrackets={preferences.autoPairBrackets}
             />
           </div>
           {preferences.statusBar && (

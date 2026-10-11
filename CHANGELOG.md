@@ -10,6 +10,7 @@ Replacement-workflow reliability and file navigation.
 - Added native external-file change detection, conflict-gated autosave/Save, Reload from Disk, macOS-coordinated existing-file writes and revision-checked descriptor-bound replacement.
 - Added Whole Word and regular-expression controls to document find/replace and recursive folder search.
 - Added compact native file-tree actions for creating files/folders, renaming, refreshing, sorting and safely moving items to the user Trash; sensitive sidebar mutations remain disabled in the retained Electron migration fallback.
+- Added optional rich-text auto-pairing for brackets and quotes with closer-skip and empty-pair Backspace behavior; Source Mode keeps CodeMirror's native pairing and now continues bullet, ordered and task-list markers on Enter while leaving code blocks untouched.
 
 ## 0.1.6 — 2026-10-10
 
