@@ -6,6 +6,7 @@ declare global {
     name: string
     path: string
     modifiedAt?: number
+    createdAt?: number
     children?: TypeOpenTreeNode[]
   }
 

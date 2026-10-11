@@ -23,6 +23,7 @@ Replacement-workflow reliability and file navigation.
 - Preserved Markdown hard-break semantics across rich/source round-trips. Backslash and two-space hard breaks now remain explicit breaks instead of degrading to soft newlines; rich normalization uses the canonical backslash marker.
 - New code blocks remember the last language explicitly selected during the current app session. The saved default-code-language preference remains unchanged and is used again as the fallback on a fresh session.
 - Added an opt-in **Show hidden files in folder tree** preference. Native and Electron hosts apply the visibility filter while preserving folder-grant containment, symlink rejection for descendants and existing `node_modules`/`Library` exclusions.
+- Added folder-tree sorting by file creation date alongside the existing name and modification-time options. Creation timestamps come from host filesystem metadata and do not widen folder authority.
 
 ## 0.1.6 — 2026-10-10
 

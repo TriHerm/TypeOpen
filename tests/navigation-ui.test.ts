@@ -117,8 +117,9 @@ describe('navigation accessibility', () => {
     const onCreateEntry = vi.fn()
     const onRefreshFolder = vi.fn()
     const fileTree: TypeOpenTreeNode[] = [
-      { type: 'file', name: 'z.md', path: '/notes/z.md', modifiedAt: 1 },
-      { type: 'file', name: 'a.md', path: '/notes/a.md', modifiedAt: 2 }
+      { type: 'file', name: 'z.md', path: '/notes/z.md', modifiedAt: 1, createdAt: 3 },
+      { type: 'file', name: 'a.md', path: '/notes/a.md', modifiedAt: 2, createdAt: 1 },
+      { type: 'file', name: 'm.md', path: '/notes/m.md', modifiedAt: 3, createdAt: 2 }
     ]
 
     await act(async () => {
@@ -149,8 +150,23 @@ describe('navigation accessibility', () => {
     await act(async () => toolbarButtons[2].click())
     expect(onCreateEntry).toHaveBeenCalledWith('file', '/notes')
     expect(onRefreshFolder).toHaveBeenCalledTimes(1)
-    expect(Array.from(host.querySelectorAll('.tree-row.file span:last-child')).map((element) => element.textContent)).toEqual(['a.md', 'z.md'])
-    expect(fileTree.map((node) => node.name)).toEqual(['z.md', 'a.md'])
+    expect(Array.from(host.querySelectorAll('.tree-row.file span:last-child')).map((element) => element.textContent)).toEqual(['a.md', 'm.md', 'z.md'])
+    expect(fileTree.map((node) => node.name)).toEqual(['z.md', 'a.md', 'm.md'])
+
+    const sortSelect = host.querySelector<HTMLSelectElement>('select[aria-label="Sort files"]')
+    await act(async () => {
+      if (!sortSelect) return
+      sortSelect.value = 'created-desc'
+      sortSelect.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(Array.from(host.querySelectorAll('.tree-row.file span:last-child')).map((element) => element.textContent)).toEqual(['z.md', 'm.md', 'a.md'])
+
+    await act(async () => {
+      if (!sortSelect) return
+      sortSelect.value = 'created-asc'
+      sortSelect.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(Array.from(host.querySelectorAll('.tree-row.file span:last-child')).map((element) => element.textContent)).toEqual(['a.md', 'm.md', 'z.md'])
 
     await act(async () => root.unmount())
   })

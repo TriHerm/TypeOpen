@@ -1230,7 +1230,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     private func listDirectory(_ rootPath: String, depth: Int = 0, showHiddenFiles: Bool = false) throws -> [[String: Any]] {
         if depth > 14 { return [] }
         guard let authorizedRoot = grants.getFolderRealPath(), let rootReal = realPath(rootPath), isInsideOrEqual(rootReal, authorizedRoot) else { return [] }
-        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey]
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey, .creationDateKey]
         let enumerationOptions: FileManager.DirectoryEnumerationOptions = showHiddenFiles ? [] : [.skipsHiddenFiles]
         let urls = try FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: rootPath), includingPropertiesForKeys: Array(keys), options: enumerationOptions)
             .filter { $0.lastPathComponent != "node_modules" && $0.lastPathComponent != "Library" }
@@ -1247,12 +1247,13 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
             if values.isSymbolicLink == true { continue }
             guard let candidateReal = realPath(url.path), isInsideOrEqual(candidateReal, authorizedRoot) else { continue }
             let modifiedAt = values.contentModificationDate.map { Int($0.timeIntervalSince1970 * 1000) } ?? 0
+            let createdAt = values.creationDate.map { Int($0.timeIntervalSince1970 * 1000) } ?? 0
             if values.isDirectory == true && url.pathExtension.lowercased() == "textbundle" {
-                result.append(["type": "file", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt])
+                result.append(["type": "file", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt, "createdAt": createdAt])
             } else if values.isDirectory == true {
-                result.append(["type": "directory", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt, "children": try listDirectory(url.path, depth: depth + 1, showHiddenFiles: showHiddenFiles)])
+                result.append(["type": "directory", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt, "createdAt": createdAt, "children": try listDirectory(url.path, depth: depth + 1, showHiddenFiles: showHiddenFiles)])
             } else if isEditableDocument(url.path) || imageMimeTypes[url.pathExtension.lowercased()] != nil {
-                result.append(["type": "file", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt])
+                result.append(["type": "file", "name": url.lastPathComponent, "path": url.path, "modifiedAt": modifiedAt, "createdAt": createdAt])
             }
         }
         return result

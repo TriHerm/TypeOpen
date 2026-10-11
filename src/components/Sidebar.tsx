@@ -83,14 +83,16 @@ function navigationScrollBehavior(): ScrollBehavior {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
 }
 
-type SortMode = 'name-asc' | 'name-desc' | 'modified-desc' | 'modified-asc'
+type SortMode = 'name-asc' | 'name-desc' | 'modified-desc' | 'modified-asc' | 'created-desc' | 'created-asc'
 
 function sortNodes(nodes: TypeOpenTreeNode[], mode: SortMode): TypeOpenTreeNode[] {
   const direction = mode.endsWith('desc') ? -1 : 1
   return [...nodes].map((node) => ({ ...node, children: node.children ? sortNodes(node.children, mode) : undefined })).sort((a, b) => {
     if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
-    if (mode.startsWith('modified')) {
-      const difference = (a.modifiedAt ?? 0) - (b.modifiedAt ?? 0)
+    if (mode.startsWith('modified') || mode.startsWith('created')) {
+      const left = mode.startsWith('created') ? (a.createdAt ?? 0) : (a.modifiedAt ?? 0)
+      const right = mode.startsWith('created') ? (b.createdAt ?? 0) : (b.modifiedAt ?? 0)
+      const difference = left - right
       if (difference !== 0) return difference * direction
     }
     return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }) * direction
@@ -251,6 +253,8 @@ export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey
                 <option value="name-desc">Name ↓</option>
                 <option value="modified-desc">Modified ↓</option>
                 <option value="modified-asc">Modified ↑</option>
+                <option value="created-desc">Created ↓</option>
+                <option value="created-asc">Created ↑</option>
               </select>
               <span className="file-tree-toolbar-spacer" />
               <button onClick={() => selectedNode && onRenameEntry(selectedNode)} disabled={!selectedNode} title="Rename selected"><Pencil size={14} /></button>

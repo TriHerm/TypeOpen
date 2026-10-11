@@ -227,18 +227,20 @@ async function listDirectory(rootPath, depth = 0, showHiddenFiles = false, autho
     const stat = await fsp.lstat(absolutePath).catch(() => null)
     if (!stat || stat.isSymbolicLink()) continue
     const modifiedAt = stat?.mtimeMs || 0
+    const createdAt = stat?.birthtimeMs || 0
     if (entry.isDirectory() && isTextBundlePath(absolutePath)) {
-      result.push({ type: 'file', name: entry.name, path: absolutePath, modifiedAt })
+      result.push({ type: 'file', name: entry.name, path: absolutePath, modifiedAt, createdAt })
     } else if (entry.isDirectory()) {
       result.push({
         type: 'directory',
         name: entry.name,
         path: absolutePath,
         modifiedAt,
+        createdAt,
         children: await listDirectory(absolutePath, depth + 1, showHiddenFiles, authorizedGrant)
       })
     } else if (isEditableDocument(absolutePath) || IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
-      result.push({ type: 'file', name: entry.name, path: absolutePath, modifiedAt })
+      result.push({ type: 'file', name: entry.name, path: absolutePath, modifiedAt, createdAt })
     }
   }
   return pathGrants.isFolderGrantCurrent(authorizedGrant) ? result : []
