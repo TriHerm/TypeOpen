@@ -50,6 +50,7 @@ import { typeOpenCommentPlugin } from './commentPlugin'
 import { typeOpenFootnotePlugin } from './footnotePlugin'
 import { typeOpenGitHubAlertPlugin } from './githubAlertPlugin'
 import { typeOpenMathPlugin } from './mathPlugin'
+import { typeOpenReferenceLinkPlugin } from './referenceLinkPlugin'
 import { typeOpenTocPlugin } from './tocPlugin'
 import { typeOpenTypingErgonomicsPlugin } from './typingErgonomicsPlugin'
 import { TYPEOPEN_SOURCE_TYPING } from './sourceTyping'
@@ -136,6 +137,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     typeOpenCommentPlugin(commentToken),
     typeOpenFootnotePlugin(),
     typeOpenGitHubAlertPlugin(),
+    typeOpenReferenceLinkPlugin(),
     typeOpenMathPlugin(),
     typeOpenTocPlugin(),
     typeOpenTypingErgonomicsPlugin(autoPairBrackets),

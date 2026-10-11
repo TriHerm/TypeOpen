@@ -19,6 +19,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Headings, lists, task lists with Task Status toggling, block quotes, tables, links, images, YAML front matter and fenced code.
 - Live `[TOC]` blocks and canonical paired GFM footnotes in rich and source editing workflows.
 - Canonical GitHub-style Alerts (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`) with rich editing, slash insertion and styled export.
+- CommonMark reference-style links (`[label][ref]`, `[label][]`, `[label]` plus definitions) render as links in rich mode and preserve their definitions; Source Mode remains the literal destination/title editing surface.
 - Rich highlight, superscript and subscript formatting plus lossless inline/block HTML comments.
 - Inline and block TeX math rendered with KaTeX.
 - Mermaid, sequence and legacy flowchart previews inside fenced code blocks.

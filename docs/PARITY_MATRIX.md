@@ -34,6 +34,7 @@ Reference inspected locally with REA: Typora 1.14.10 build 7786 on macOS. Primar
 | Sequence diagrams | static diagram preferences | Implemented | `sequence` fences translated to Mermaid sequence syntax where possible |
 | Flowcharts | static diagram preferences | Implemented | `flow`/`flowchart` fences rendered with flowchart.js |
 | Links | static menu/preferences | Implemented | Rich link dialog plus Markdown insertion/copy/open support |
+| Reference-style links | static Markdown behavior | Implemented | Full, collapsed and shortcut CommonMark references render in rich mode and serialize back with their definitions. Duplicate identifiers resolve first-definition-wins while duplicate/unused definitions are preserved. Definition destinations/titles remain Source-mode edits; rich formatting may canonicalize inside the link label |
 | Images | static menu/preferences | Implemented | URL/local insert; pasted/uploaded images can be copied to adjacent `assets/` |
 | YAML front matter | static Paragraph/menu resources | Implemented | Frontmatter editor plugin and insert command |
 | GitHub-style Alerts | static Markdown/preferences behavior | Implemented | Canonical `> [!NOTE]` / `TIP` / `IMPORTANT` / `WARNING` / `CAUTION` syntax becomes an editable rich alert, round-trips exactly, remains literal in Source mode, and exports as a styled callout |
@@ -71,7 +72,6 @@ These are intentionally tracked even when they are not part of the current imple
 | Next | Markdown-marker pairing, smart punctuation and configurable whitespace/line-break behavior | Bracket/quote auto-pairing is implemented. Remaining text transformations must stay conservative so they do not duplicate Markdown shortcuts or silently change persisted Markdown |
 | Next | Code tools: remember-last-language and richer selection/block indentation controls | CodeMirror already provides line numbers, Tab indentation and wrapping, and TypeOpen now configures the default language for newly inserted fences |
 | Next | Flat outline mode and configurable chapter level | Hierarchical collapse/expand, Expand All / Collapse All and active-heading reveal are implemented; alternate flat/chapter-level presentation remains |
-| Next | Reference-style links (`[label][ref]`, `[label][]`, `[ref]` plus definitions) | GitHub Alerts and HTML blocks are implemented. Reference-link rich-mode preservation still requires a mounted-editor round-trip audit before claiming parity or adding custom nodes |
 | Next | Session restore for clean files/folders and stronger recovery/version workflows | Unsaved buffers recover safely today; persisted path authority is deliberately not restored implicitly |
 | Later | Multi-window / Open in New Window | Multi-tab model exists; the native app still centers on one main editing window |
 | Later | Advanced file library: hidden-file toggle, configurable glob patterns, pinned/recent locations, grouping and creation-date sorting | Basic native management and name/modified sorting exist |
