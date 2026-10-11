@@ -14,6 +14,7 @@ Replacement-workflow reliability and file navigation.
 - Added a configurable default language for newly inserted fenced code blocks while retaining CodeMirror's existing line numbers, Tab indentation, wrapping and per-block language selector.
 - Added a hierarchical collapsible document outline with branch toggles, Expand All / Collapse All controls and automatic ancestor expansion when the active heading changes.
 - Added canonical GitHub-style Alerts (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`) as editable rich blocks with exact Markdown round-trip, slash-command insertion and styled HTML/PDF/PNG/Print output.
+- Added CommonMark reference-style links in rich mode for full, collapsed and shortcut forms, preserving definitions and shared/unused references while keeping destination/title editing literal in Source Mode.
 
 ## 0.1.6 — 2026-10-10
 
