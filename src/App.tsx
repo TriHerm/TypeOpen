@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, FileText, FolderOpen, PanelLeft, Plus, Save, Search, X } from 'lucide-react'
 import { MarkdownEditor, type MarkdownEditorHandle } from './editor/MarkdownEditor'
+import { AboutDialog } from './components/AboutDialog'
 import { FindBar } from './components/FindBar'
 import { GlobalSearch, type GlobalSearchResult } from './components/GlobalSearch'
 import { PreferencesDialog, type TypeOpenPreferences } from './components/PreferencesDialog'
@@ -12,6 +13,10 @@ import { createExportHtml, documentTitle, extractOutline, findMatches, getDocume
 const EMPTY_DOCUMENT = ''
 const PREF_KEY = 'typeopen.preferences.v1'
 const PAGE_SETUP_KEY = 'typeopen.page-setup.v1'
+
+function navigationScrollBehavior(): ScrollBehavior {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+}
 
 const DEFAULT_PREFS: TypeOpenPreferences = {
   theme: 'system',
@@ -118,6 +123,7 @@ export default function App() {
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [fileReveal, setFileReveal] = useState<{ path: string; request: number } | null>(null)
   const [preferencesVisible, setPreferencesVisible] = useState(false)
+  const [aboutVisible, setAboutVisible] = useState(false)
   const [preferences, setPreferences] = useState<TypeOpenPreferences>(() => loadPreferences())
   const [pageSetupVisible, setPageSetupVisible] = useState(false)
   const [pageSetup, setPageSetup] = useState<PageSetupState>(() => loadPageSetup())
@@ -590,8 +596,14 @@ export default function App() {
   const scrollToHeading = useCallback((item: OutlineItem) => {
     const headings = document.querySelectorAll('.typeopen-editor-content h1,.typeopen-editor-content h2,.typeopen-editor-content h3,.typeopen-editor-content h4,.typeopen-editor-content h5,.typeopen-editor-content h6')
     const index = outline.findIndex((candidate) => candidate.slug === item.slug)
-    headings[index]?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    headings[index]?.scrollIntoView({ block: 'start', behavior: navigationScrollBehavior() })
   }, [outline])
+
+  useEffect(() => {
+    const activeTab = document.querySelector<HTMLElement>('.document-tabs-scroll .document-tab.active')
+    if (!activeTab) return
+    requestAnimationFrame(() => activeTab.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: navigationScrollBehavior() }))
+  }, [activeDocumentId, documents.length])
 
   useEffect(() => {
     if (sourceMode || outline.length === 0) {
@@ -681,7 +693,7 @@ export default function App() {
       const anchor = selection?.anchorNode instanceof Element ? selection.anchorNode : selection?.anchorNode?.parentElement
       const block = anchor?.closest('.typeopen-editor-content > *') as HTMLElement | null
       document.querySelectorAll('.typeopen-editor-content > *').forEach((element) => element.classList.toggle('typeopen-focus-active', element === block))
-      if (typewriterMode && block) block.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      if (typewriterMode && block) block.scrollIntoView({ block: 'center', behavior: navigationScrollBehavior() })
     }
     document.addEventListener('selectionchange', handleSelection)
     return () => document.removeEventListener('selectionchange', handleSelection)
@@ -757,8 +769,9 @@ export default function App() {
       else if (command === 'copy-markdown') void window.typeopen.invoke('typeopen:clipboard-write', editorRef.current?.getSelectionMarkdown() || markdown)
       else if (command === 'copy-html') void window.typeopen.invoke('typeopen:clipboard-write', editorRef.current?.getContentEditableHTML() || '')
       else if (command === 'paste-plain') void window.typeopen.invoke<string>('typeopen:clipboard-read').then((text) => editorRef.current?.insertMarkdown(text))
-      else if (command === 'about') showToast(`TypeOpen ${__TYPEOPEN_VERSION__} — open-source Markdown editor`)
+      else if (command === 'about') setAboutVisible(true)
       else if (command === 'documentation') void window.typeopen.invoke('typeopen:open-external', 'https://github.com/TriHerm/TypeOpen')
+      else if (command === 'triherm-labs') void window.typeopen.invoke('typeopen:open-external', 'https://github.com/TriHerm')
       else if (command === 'markdown-reference') void window.typeopen.invoke('typeopen:open-external', 'https://commonmark.org/help/')
       else if (command === 'licenses') showToast('TypeOpen is Apache-2.0; third-party notices are included with the project.')
     })
@@ -809,7 +822,7 @@ export default function App() {
         <button className="document-tab-add" title="New Tab" aria-label="New Tab" onClick={newDocument}><Plus size={14} /></button>
       </div>
       <div className="workspace">
-        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} activeOutlineSlug={activeOutlineSlug} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onHeadingClick={scrollToHeading} />
+        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} activeOutlineSlug={activeOutlineSlug} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onHeadingClick={scrollToHeading} onRequestFocusEditor={() => editorRef.current?.focus()} />
         <main className="document-workspace">
           <FindBar
             visible={findVisible}
@@ -860,7 +873,14 @@ export default function App() {
       </div>
       <GlobalSearch visible={globalSearchVisible} folderPath={folderPath} onClose={() => setGlobalSearchVisible(false)} onOpenResult={openGlobalSearchResult} />
       <QuickOpen visible={quickOpenVisible} folderPath={folderPath} fileTree={fileTree} onClose={() => setQuickOpenVisible(false)} onOpenFile={loadFile} />
-          <PreferencesDialog visible={preferencesVisible} preferences={preferences} onChange={setPreferences} onClose={() => setPreferencesVisible(false)} onChooseCustomTheme={() => void chooseCustomTheme()} />
+      <AboutDialog
+        visible={aboutVisible}
+        version={__TYPEOPEN_VERSION__}
+        onClose={() => setAboutVisible(false)}
+        onOpenLabs={() => void window.typeopen.invoke('typeopen:open-external', 'https://github.com/TriHerm')}
+        onOpenProject={() => void window.typeopen.invoke('typeopen:open-external', 'https://github.com/TriHerm/TypeOpen')}
+      />
+      <PreferencesDialog visible={preferencesVisible} preferences={preferences} onChange={setPreferences} onClose={() => setPreferencesVisible(false)} onChooseCustomTheme={() => void chooseCustomTheme()} />
           <PageSetupDialog visible={pageSetupVisible} value={pageSetup} onChange={setPageSetup} onClose={() => setPageSetupVisible(false)} />
       {toast && <div className="toast">{toast}</div>}
       {busy && <div className="busy-indicator">Working…</div>}

@@ -2,6 +2,14 @@
 
 All notable TypeOpen changes are recorded here.
 
+## 0.1.5 — 2026-10-10
+
+Navigation polish and project attribution.
+
+- Smoothed sidebar collapse/expand, active tab reveal and outline tracking while honoring macOS reduced-motion preferences.
+- Added short microtransitions for navigation states without adding persistent animation or visual chrome.
+- Replaced the About toast with a compact About panel that credits TriHerm Labs first and Fernando Abishai secondarily, and added a non-invasive TriHerm Labs link under Help.
+
 ## 0.1.4 — 2026-10-10
 
 Editor command surfaces.

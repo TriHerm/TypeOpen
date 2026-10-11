@@ -395,6 +395,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         helpMenu.addItem(commandItem("TypeOpen Documentation", command: "documentation"))
         helpMenu.addItem(commandItem("Markdown Reference", command: "markdown-reference"))
         helpMenu.addItem(.separator())
+        helpMenu.addItem(commandItem("TriHerm Labs on GitHub", command: "triherm-labs"))
+        helpMenu.addItem(.separator())
         helpMenu.addItem(commandItem("Open Source Licenses", command: "licenses"))
         main.addItem(menuRoot("Help", submenu: helpMenu))
 

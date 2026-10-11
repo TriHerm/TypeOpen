@@ -29,6 +29,10 @@ interface TocItem {
   text: string
 }
 
+function navigationScrollBehavior(): ScrollBehavior {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+}
+
 type SerializedTableOfContentsNode = Spread<{ type: 'typeopen-toc'; version: 1 }, SerializedLexicalNode>
 
 function TableOfContentsView({ editor }: { editor: LexicalEditor }) {
@@ -64,7 +68,7 @@ function TableOfContentsView({ editor }: { editor: LexicalEditor }) {
             key={item.key}
             type="button"
             style={{ paddingInlineStart: `${8 + (item.level - 1) * 14}px` }}
-            onClick={() => editor.getElementByKey(item.key)?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
+            onClick={() => editor.getElementByKey(item.key)?.scrollIntoView({ block: 'start', behavior: navigationScrollBehavior() })}
           >
             {item.text}
           </button>
