@@ -25,6 +25,7 @@ Replacement-workflow reliability and file navigation.
 - Added an opt-in **Show hidden files in folder tree** preference. Native and Electron hosts apply the visibility filter while preserving folder-grant containment, symlink rejection for descendants and existing `node_modules`/`Library` exclusions.
 - Added folder-tree sorting by file creation date alongside the existing name and modification-time options. Creation timestamps come from host filesystem metadata and do not widen folder authority.
 - Added native **Edit → Substitutions** controls for smart quotes, smart dashes and macOS text replacement. The native host delegates these explicit user actions to WKWebView instead of rewriting Markdown with TypeOpen-owned punctuation transforms.
+- Hardened folder-tree image handling so image assets cannot enter the editable-document `read-file`/grant path. Image rows remain selectable and can be revealed in Finder through the existing folder-scoped authority instead of being opened as Markdown.
 
 ## 0.1.6 — 2026-10-10
 

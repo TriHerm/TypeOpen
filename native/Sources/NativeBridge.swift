@@ -1186,6 +1186,9 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     }
 
     private func readGrantedDocument(_ filePath: String) throws -> [String: Any] {
+        guard isEditableDocument(filePath) else {
+            throw TypeOpenNativeError.message("Choose a supported document type.")
+        }
         guard let normalized = normalizedPath(filePath),
               let before = grants.readableSnapshot(normalized) ?? grants.replacementReadableSnapshot(normalized),
               let identityBefore = nativePathSnapshot(normalized, rejectSymbolicLink: false),

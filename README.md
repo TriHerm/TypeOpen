@@ -23,7 +23,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Rich highlight, superscript and subscript formatting plus lossless inline/block HTML comments.
 - Inline and block TeX math rendered with KaTeX.
 - Mermaid, sequence and legacy flowchart previews inside fenced code blocks.
-- Folder file tree, article list and document outline; the native runtime can create/rename/trash files and folders, refresh the tree, sort by name, modification time or creation time, and optionally show hidden files without widening the authorized folder boundary.
+- Folder file tree, article list and document outline; the native runtime can create/rename/trash files and folders, refresh the tree, sort by name, modification time or creation time, optionally show hidden files, and reveal selected assets in Finder without promoting images into editable-document authority.
 - Multi-document tabs with per-document dirty state, Save All, safe close prompts and next/previous tab navigation.
 - Native recent documents, reopen-closed history, Open Quickly, Reveal in File Tree and Open File Location.
 - Explicit **Restore Previous Session** for clean saved tabs; missing, replaced or symlinked paths are skipped, and no folder grant is restored implicitly.

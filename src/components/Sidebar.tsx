@@ -19,6 +19,7 @@ interface SidebarProps {
   revealFilePath: string | null
   revealRequest: number
   onOpenFile: (path: string) => void
+  onRevealEntry?: (node: TypeOpenTreeNode) => void
   onHeadingClick: (item: OutlineItem) => void
   onRequestFocusEditor: () => void
   folderPath: string | null
@@ -84,6 +85,7 @@ function navigationScrollBehavior(): ScrollBehavior {
 }
 
 type SortMode = 'name-asc' | 'name-desc' | 'modified-desc' | 'modified-asc' | 'created-desc' | 'created-asc'
+const IMAGE_FILE_NAME = /\.(png|jpe?g|gif|webp|svg|avif)$/i
 
 function sortNodes(nodes: TypeOpenTreeNode[], mode: SortMode): TypeOpenTreeNode[] {
   const direction = mode.endsWith('desc') ? -1 : 1
@@ -127,7 +129,7 @@ function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, select
     )
   }
   return (
-    <button ref={rowRef} className={`tree-row file ${currentFilePath === node.path ? 'active' : ''} ${selectedPath === node.path ? 'selected' : ''}`} onClick={() => { onSelect(node); onOpenFile(node.path) }} title={node.path}>
+    <button ref={rowRef} className={`tree-row file ${currentFilePath === node.path ? 'active' : ''} ${selectedPath === node.path ? 'selected' : ''}`} onClick={() => { onSelect(node); if (!IMAGE_FILE_NAME.test(node.name)) onOpenFile(node.path) }} title={node.path}>
       <span className="tree-spacer" />
       <File size={14} />
       <span>{node.name}</span>
@@ -135,7 +137,7 @@ function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, select
   )
 }
 
-export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey, activeOutlineSlug, outlineMode = 'hierarchical', outlineMaxLevel = 6, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onHeadingClick, onRequestFocusEditor, folderPath, onCreateEntry, onRenameEntry, onTrashEntry, onRefreshFolder }: SidebarProps) {
+export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey, activeOutlineSlug, outlineMode = 'hierarchical', outlineMaxLevel = 6, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onRevealEntry = () => undefined, onHeadingClick, onRequestFocusEditor, folderPath, onCreateEntry, onRenameEntry, onTrashEntry, onRefreshFolder }: SidebarProps) {
   const sidebarRef = useRef<HTMLElement>(null)
   const outlineRef = useRef<HTMLDivElement>(null)
   const [selectedNode, setSelectedNode] = useState<TypeOpenTreeNode | null>(null)
@@ -257,6 +259,7 @@ export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey
                 <option value="created-asc">Created ↑</option>
               </select>
               <span className="file-tree-toolbar-spacer" />
+              <button onClick={() => selectedNode && onRevealEntry(selectedNode)} disabled={!selectedNode} title="Reveal selected in Finder"><FolderOpen size={14} /></button>
               <button onClick={() => selectedNode && onRenameEntry(selectedNode)} disabled={!selectedNode} title="Rename selected"><Pencil size={14} /></button>
               <button onClick={() => selectedNode && onTrashEntry(selectedNode)} disabled={!selectedNode} title="Move selected to Trash"><Trash2 size={14} /></button>
             </div>

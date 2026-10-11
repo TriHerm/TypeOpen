@@ -1262,6 +1262,7 @@ ipcMain.handle('typeopen:open-folder', async (event) => { assertTrustedRenderer(
 ipcMain.handle('typeopen:choose-theme-css', async (event) => { assertTrustedRenderer(event); return chooseThemeCss() })
 ipcMain.handle('typeopen:read-file', async (event, filePath) => {
   assertTrustedRenderer(event)
+  if (typeof filePath !== 'string' || !isEditableDocument(filePath)) throw new Error('Choose a supported document type.')
   await assertReadableDocumentPath(filePath)
   const hadExactGrant = pathGrants.isDocumentGranted(filePath)
   const authorizedFolderRealPath = hadExactGrant ? null : pathGrants.getFolderRealPath()
