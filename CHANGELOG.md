@@ -2,6 +2,14 @@
 
 All notable TypeOpen changes are recorded here.
 
+## 0.1.6 — 2026-10-10
+
+Theme consistency and code-editor contrast.
+
+- Unified the built-in Light and Dark palettes and mapped MDXEditor surfaces to TypeOpen theme tokens so editor controls no longer fall back to a white surface in Dark mode.
+- Added theme-aware CodeMirror backgrounds, gutters, active-line/selection states, language menus and syntax colors for rich code blocks and Source mode.
+- Added regression coverage for MDXEditor palette mapping and AA contrast of primary, secondary and comment text in code surfaces.
+
 ## 0.1.5 — 2026-10-10
 
 Navigation polish and project attribution.

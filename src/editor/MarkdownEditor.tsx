@@ -37,9 +37,12 @@ import {
   type ViewMode,
   viewMode$
 } from '@mdxeditor/editor'
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { Prec } from '@codemirror/state'
 import { $isListItemNode } from '@lexical/list'
 import { $createHeadingNode, type HeadingTagType } from '@lexical/rich-text'
 import { $getSelection, $isRangeSelection, $isTextNode, FORMAT_TEXT_COMMAND, INDENT_CONTENT_COMMAND, OUTDENT_CONTENT_COMMAND, SET_TEXT_FORMAT_COMMAND, type LexicalNode, type TextFormatType } from 'lexical'
+import { tags } from '@lezer/highlight'
 import { DiagramCodeBlockEditor } from './DiagramCodeBlockEditor'
 import { SlashCommandMenu } from './SlashCommandMenu'
 import { createHtmlCommentToken, decodeHtmlCommentsFromRichEditor, encodeHtmlCommentsForRichEditor } from './commentEncoding'
@@ -50,6 +53,19 @@ import { typeOpenTocPlugin } from './tocPlugin'
 import { filterSlashCommands, isRootEditableSelection, parseSlashQuery, type SlashCommand } from './slashCommands'
 
 type EditorRealm = Parameters<NonNullable<RealmPlugin['postInit']>>[0]
+
+const TYPEOPEN_CODE_HIGHLIGHT = Prec.highest(syntaxHighlighting(HighlightStyle.define([
+  { tag: [tags.keyword, tags.modifier, tags.operatorKeyword], color: 'var(--code-syntax-keyword)' },
+  { tag: [tags.name, tags.variableName, tags.propertyName, tags.attributeName], color: 'var(--code-syntax-variable)' },
+  { tag: tags.function(tags.variableName), color: 'var(--code-syntax-function)' },
+  { tag: [tags.string, tags.special(tags.string), tags.regexp, tags.escape], color: 'var(--code-syntax-string)' },
+  { tag: [tags.number, tags.bool, tags.atom], color: 'var(--code-syntax-number)' },
+  { tag: [tags.typeName, tags.className, tags.namespace], color: 'var(--code-syntax-type)' },
+  { tag: tags.tagName, color: 'var(--code-syntax-tag)' },
+  { tag: [tags.operator, tags.separator], color: 'var(--code-syntax-operator)' },
+  { tag: [tags.comment, tags.meta], color: 'var(--code-syntax-comment)', fontStyle: 'italic' },
+  { tag: tags.invalid, color: 'var(--code-syntax-invalid)', textDecoration: 'underline wavy' }
+])))
 
 export interface MarkdownEditorHandle {
   getMarkdown(): string
@@ -128,8 +144,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         }
       ]
     }),
-    codeMirrorPlugin({ codeBlockLanguages: { js: 'JavaScript', jsx: 'JSX', ts: 'TypeScript', tsx: 'TSX', css: 'CSS', html: 'HTML', json: 'JSON', bash: 'Bash', sh: 'Shell', python: 'Python', py: 'Python', sql: 'SQL', rust: 'Rust', swift: 'Swift', mermaid: 'Mermaid', sequence: 'Sequence', flow: 'Flowchart', text: 'Plain Text' } }),
-    diffSourcePlugin({ viewMode: (sourceMode ? 'source' : 'rich-text') as ViewMode }),
+    codeMirrorPlugin({
+      codeBlockLanguages: { js: 'JavaScript', jsx: 'JSX', ts: 'TypeScript', tsx: 'TSX', css: 'CSS', html: 'HTML', json: 'JSON', bash: 'Bash', sh: 'Shell', python: 'Python', py: 'Python', sql: 'SQL', rust: 'Rust', swift: 'Swift', mermaid: 'Mermaid', sequence: 'Sequence', flow: 'Flowchart', text: 'Plain Text' },
+      codeMirrorExtensions: [TYPEOPEN_CODE_HIGHLIGHT]
+    }),
+    diffSourcePlugin({ viewMode: (sourceMode ? 'source' : 'rich-text') as ViewMode, codeMirrorExtensions: [TYPEOPEN_CODE_HIGHLIGHT] }),
     markdownShortcutPlugin(),
     commandBridgePlugin,
     ...(toolbarVisible ? [toolbarPlugin({
