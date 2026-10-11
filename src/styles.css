@@ -94,6 +94,7 @@ button { -webkit-app-region: no-drag; }
 
 .document-workspace { flex: 1; min-width: 0; min-height: 0; position: relative; display: flex; flex-direction: column; background: var(--bg); }
 .editor-scroll-area { flex: 1; min-height: 0; overflow: auto; position: relative; scroll-behavior: smooth; }
+.typeopen-editor-surface { min-height: 100%; }
 .typeopen-mdx-root { min-height: 100%; background: transparent; }
 .typeopen-mdx-root [class*="toolbarRoot"] { position: sticky; top: 0; z-index: 5; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: color-mix(in srgb, var(--surface) 94%, transparent); }
 .typeopen-editor-content { max-width: var(--content-width); min-height: calc(100vh - 125px); margin: 0 auto; padding: 54px 28px 120px; outline: none; color: var(--text); caret-color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: var(--editor-font-size); line-height: 1.72; letter-spacing: .002em; }
@@ -127,6 +128,20 @@ button { -webkit-app-region: no-drag; }
 .typeopen-html-comment.inline { display: inline; padding: .08em .3em; margin: 0 .12em; }
 .typeopen-html-comment.block { display: block; padding: .42em .6em; margin: .8em 0; white-space: pre-wrap; }
 .empty-hint { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); color: color-mix(in srgb, var(--muted) 60%, transparent); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; font-size: 13px; z-index: 0; }
+
+.slash-command-menu { position: fixed; z-index: 88; width: 292px; max-height: 360px; overflow: hidden; border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--bg) 96%, transparent); box-shadow: 0 14px 44px rgba(0,0,0,.2); backdrop-filter: blur(18px); }
+.slash-command-header { min-height: 39px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 8px 10px 7px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 88%, transparent); }
+.slash-command-header strong { font-size: 11.5px; font-weight: 650; }
+.slash-command-header span { color: var(--muted); font-size: 9.5px; }
+.slash-command-list { max-height: 272px; overflow: auto; padding: 5px; }
+.slash-command-item { width: 100%; min-height: 42px; border: 0; border-radius: 6px; background: transparent; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 8px; align-items: center; padding: 5px 7px; text-align: left; }
+.slash-command-item:hover, .slash-command-item.selected { background: var(--surface-2); }
+.slash-command-symbol { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); background: var(--surface); font: 650 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.slash-command-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.slash-command-copy strong { font-size: 11.5px; font-weight: 600; }
+.slash-command-copy small { color: var(--muted); font-size: 9.8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.slash-command-empty { color: var(--muted); text-align: center; padding: 26px 12px; font-size: 11px; }
+.slash-command-footer { border-top: 1px solid var(--border); padding: 6px 10px 7px; color: var(--muted); background: var(--surface); font-size: 9.5px; }
 
 .typeopen-math-node { cursor: text; }
 .typeopen-math-node.block { display: block; text-align: center; padding: 9px; margin: 1em 0; overflow: auto; }

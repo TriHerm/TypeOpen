@@ -18,6 +18,7 @@ const nativeSources = [
   'PathGrants.swift',
   'RendererSchemeHandler.swift',
   'RenderJob.swift',
+  'TypeOpenWebView.swift',
   'WindowDrag.swift'
 ].map((name) => join(projectRoot, 'native', 'Sources', name))
 

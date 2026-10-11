@@ -15,12 +15,12 @@ homebrew-tap/
 
 Homebrew maps the short tap name `triherm/tap` to `https://github.com/TriHerm/homebrew-tap`.
 
-## v0.1.3 release metadata
+## v0.1.4 release metadata
 
-- Release: `v0.1.3`
-- Artifact: `TypeOpen-0.1.3-arm64.dmg`
-- URL: `https://github.com/TriHerm/TypeOpen/releases/download/v0.1.3/TypeOpen-0.1.3-arm64.dmg`
-- SHA-256: `0e31f0bb568bd40868c7f30e02c6e0b792ba2c76675b1afe8b6ebe3e2fb329ad`
+- Release: `v0.1.4`
+- Artifact: `TypeOpen-0.1.4-arm64.dmg`
+- URL: `https://github.com/TriHerm/TypeOpen/releases/download/v0.1.4/TypeOpen-0.1.4-arm64.dmg`
+- SHA-256: `a0812ab14646f52483add7ded60b8938448a5977b216b7ca2ee3db67a333052a`
 - Architecture: Apple Silicon (`arm64`) only
 - Minimum macOS: 13 Ventura
 - Bundle identifier: `com.triherm.typeopen`
@@ -63,7 +63,7 @@ brew untap triherm/tap
 
 Do not add a cask-side quarantine bypass. Homebrew intentionally applies/preserves macOS quarantine for cask downloads so Gatekeeper evaluates downloaded applications.
 
-The current v0.1.3 application has a valid ad-hoc code signature but no Developer ID identity and no Apple notarization ticket. Consequently it does not meet the security baseline for submission to the official `homebrew/cask` repository and may be blocked on first launch under the default Gatekeeper configuration.
+The current v0.1.4 application has a valid ad-hoc code signature but no Developer ID identity and no Apple notarization ticket. Consequently it does not meet the security baseline for submission to the official `homebrew/cask` repository and may be blocked on first launch under the default Gatekeeper configuration.
 
 Users who deliberately trust this exact release can first attempt to open TypeOpen, then go to **System Settings > Privacy & Security > Open Anyway** and confirm the launch. This creates a per-app exception without disabling Gatekeeper globally or stripping quarantine attributes from arbitrary downloads.
 

@@ -2,6 +2,14 @@
 
 All notable TypeOpen changes are recorded here.
 
+## 0.1.4 — 2026-10-10
+
+Editor command surfaces.
+
+- Added a compact native **TypeOpen** submenu to the macOS right-click menu while preserving the platform Copy/Paste/Spelling items.
+- Added a searchable slash command palette in rich-text mode with a deliberately small default set plus filtered access to tables, images, math, TOC, footnotes and front matter.
+- Added keyboard navigation for slash commands and regression coverage for command filtering/parsing and the native context-menu integration.
+
 ## 0.1.3 — 2026-10-10
 
 Window-drag hotfix.

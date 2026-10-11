@@ -178,9 +178,10 @@ export default function App() {
       folderPath,
       dirty: isDocumentDirty(document),
       hasDirtyDocuments: collection.some(isDocumentDirty),
-      title: documentDisplayTitle(document)
+      title: documentDisplayTitle(document),
+      editorCommandsEnabled: !readOnly && !sourceMode
     })
-  }, [folderPath])
+  }, [folderPath, readOnly, sourceMode])
 
   const activateDocument = useCallback((id: string) => {
     if (id === activeDocumentIdRef.current) return
@@ -659,8 +660,8 @@ export default function App() {
   }, [preferences.customThemeCss])
 
   useEffect(() => {
-    window.typeopen.setDocumentState({ filePath, folderPath, dirty, hasDirtyDocuments, title })
-  }, [dirty, filePath, folderPath, hasDirtyDocuments, title])
+    window.typeopen.setDocumentState({ filePath, folderPath, dirty, hasDirtyDocuments, title, editorCommandsEnabled: !readOnly && !sourceMode })
+  }, [dirty, filePath, folderPath, hasDirtyDocuments, readOnly, sourceMode, title])
 
   useEffect(() => {
     if (!preferences.autosave || !filePath || !dirty) return
@@ -726,6 +727,10 @@ export default function App() {
       else if (command === 'clear-format') {
         if (!editorRef.current?.clearFormat()) showToast('Clear Format is available for a rich-text selection')
       }
+      else if (command === 'context-clear-format') {
+        if (readOnly || sourceMode) return
+        if (!editorRef.current?.clearFormat()) showToast('Clear Format is available for a rich-text selection')
+      }
       else if (command === 'heading-level' && (payload === 'increase' || payload === 'decrease')) {
         if (!editorRef.current?.changeHeadingLevel(payload)) showToast('Place the caret in a heading that can change level')
       }
@@ -741,6 +746,14 @@ export default function App() {
       else if (command === 'preferences') setPreferencesVisible(true)
       else if (command === 'insert' && typeof payload === 'string') insertSnippet(payload)
       else if (command === 'format' && typeof payload === 'string') handleFormat(payload)
+      else if (command === 'context-insert' && typeof payload === 'string') {
+        if (readOnly || sourceMode) return
+        insertSnippet(payload)
+      }
+      else if (command === 'context-format' && typeof payload === 'string') {
+        if (readOnly || sourceMode) return
+        handleFormat(payload)
+      }
       else if (command === 'copy-markdown') void window.typeopen.invoke('typeopen:clipboard-write', editorRef.current?.getSelectionMarkdown() || markdown)
       else if (command === 'copy-html') void window.typeopen.invoke('typeopen:clipboard-write', editorRef.current?.getContentEditableHTML() || '')
       else if (command === 'paste-plain') void window.typeopen.invoke<string>('typeopen:clipboard-read').then((text) => editorRef.current?.insertMarkdown(text))
@@ -751,7 +764,7 @@ export default function App() {
     })
     window.typeopen.rendererReady()
     return unsubscribe
-  }, [closeDocument, duplicateActiveDocument, exportDocument, filePath, handleFormat, insertSnippet, loadFile, markdown, navigateDocument, navigateMatch, newDocument, openFile, openFolder, printDocument, relocateActiveDocument, reopenClosedFile, replaceOne, revealCurrentFileInTree, revertActiveDocument, save, saveAllDocuments, showToast, toggleSourceMode])
+  }, [closeDocument, duplicateActiveDocument, exportDocument, filePath, handleFormat, insertSnippet, loadFile, markdown, navigateDocument, navigateMatch, newDocument, openFile, openFolder, printDocument, readOnly, relocateActiveDocument, reopenClosedFile, replaceOne, revealCurrentFileInTree, revertActiveDocument, save, saveAllDocuments, showToast, sourceMode, toggleSourceMode])
 
   const effectiveTheme = preferences.theme
   return (
@@ -827,6 +840,7 @@ export default function App() {
               readOnly={readOnly}
               sourceMode={sourceMode}
               spellCheck={preferences.spellCheck}
+              onSlashCommand={insertSnippet}
               imageUpload={uploadImage}
               imagePreview={previewImage}
               toolbarVisible={preferences.toolbar}
