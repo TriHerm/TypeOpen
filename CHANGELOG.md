@@ -11,6 +11,8 @@ Replacement-workflow reliability and file navigation.
 - Added Whole Word and regular-expression controls to document find/replace and recursive folder search.
 - Added compact native file-tree actions for creating files/folders, renaming, refreshing, sorting and safely moving items to the user Trash; sensitive sidebar mutations remain disabled in the retained Electron migration fallback.
 - Added optional rich-text auto-pairing for brackets and quotes with closer-skip and empty-pair Backspace behavior; Source Mode keeps CodeMirror's native pairing and now continues bullet, ordered and task-list markers on Enter while leaving code blocks untouched.
+- Added a configurable default language for newly inserted fenced code blocks while retaining CodeMirror's existing line numbers, Tab indentation, wrapping and per-block language selector.
+- Added a hierarchical collapsible document outline with branch toggles, Expand All / Collapse All controls and automatic ancestor expansion when the active heading changes.
 
 ## 0.1.6 — 2026-10-10
 

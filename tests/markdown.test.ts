@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createExportHtml, documentTitle, extractOutline, findMatches, getDocumentStats, replaceAllLiteral, slugifyHeading } from '../src/lib/markdown'
+import { buildOutlineTree, createExportHtml, documentTitle, extractOutline, findMatches, getDocumentStats, outlineAncestorSlugs, replaceAllLiteral, slugifyHeading } from '../src/lib/markdown'
 
 describe('markdown document helpers', () => {
   it('extracts headings while ignoring fenced code', () => {
@@ -16,6 +16,16 @@ describe('markdown document helpers', () => {
     expect(slugifyHeading('Café & Sistemas: 2026')).toBe('café-sistemas-2026')
     expect(documentTitle('Text before\n\n# Primary title')).toBe('Primary title')
     expect(documentTitle('No heading', 'Draft')).toBe('Draft')
+  })
+
+  it('builds a hierarchical outline using the nearest previous lower-level heading', () => {
+    const items = extractOutline('# Root\n\n### Deep\n\n#### Leaf\n\n## Sibling\n\n# Next')
+    const tree = buildOutlineTree(items)
+    expect(tree.map((item) => item.slug)).toEqual(['root', 'next'])
+    expect(tree[0].children.map((item) => item.slug)).toEqual(['deep', 'sibling'])
+    expect(tree[0].children[0].children.map((item) => item.slug)).toEqual(['leaf'])
+    expect(outlineAncestorSlugs(tree, 'leaf')).toEqual(['root', 'deep'])
+    expect(outlineAncestorSlugs(tree, 'next')).toEqual([])
   })
 
   it('calculates practical document statistics', () => {

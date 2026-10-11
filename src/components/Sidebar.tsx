@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, File, FilePlus2, Folder, FolderOpen, FolderPlus, List, Network, Pencil, RefreshCw, Trash2 } from 'lucide-react'
-import type { OutlineItem } from '../lib/markdown'
+import { buildOutlineTree, outlineAncestorSlugs, type OutlineItem, type OutlineTreeItem } from '../lib/markdown'
 
 export type SidebarTab = 'outline' | 'articles' | 'files'
 
@@ -9,6 +9,7 @@ interface SidebarProps {
   tab: SidebarTab
   onTabChange: (tab: SidebarTab) => void
   outline: OutlineItem[]
+  outlineDocumentKey: string
   activeOutlineSlug: string | null
   fileTree: TypeOpenTreeNode[]
   currentFilePath: string | null
@@ -22,6 +23,53 @@ interface SidebarProps {
   onRenameEntry: (node: TypeOpenTreeNode) => void
   onTrashEntry: (node: TypeOpenTreeNode) => void
   onRefreshFolder: () => void
+}
+
+function collapsibleOutlineSlugs(nodes: OutlineTreeItem[]): string[] {
+  const result: string[] = []
+  const visit = (items: OutlineTreeItem[]) => items.forEach((item) => {
+    if (item.children.length) result.push(item.slug)
+    visit(item.children)
+  })
+  visit(nodes)
+  return result
+}
+
+function OutlineNode({ item, activeOutlineSlug, collapsed, onToggle, onHeadingClick }: {
+  item: OutlineTreeItem
+  activeOutlineSlug: string | null
+  collapsed: Set<string>
+  onToggle: (slug: string) => void
+  onHeadingClick: (item: OutlineItem) => void
+}) {
+  const hasChildren = item.children.length > 0
+  const isCollapsed = collapsed.has(item.slug)
+  return (
+    <div className="outline-item">
+      <div className="outline-item-row">
+        {hasChildren ? (
+          <button
+            className="outline-toggle"
+            aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${item.text}`}
+            aria-expanded={!isCollapsed}
+            onClick={() => onToggle(item.slug)}
+          >
+            {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+          </button>
+        ) : <span className="outline-toggle-spacer" aria-hidden="true" />}
+        <button className={`outline-row level-${item.level} ${activeOutlineSlug === item.slug ? 'active' : ''}`} onClick={() => onHeadingClick(item)} title={`Line ${item.line}`}>
+          {item.text}
+        </button>
+      </div>
+      {hasChildren && !isCollapsed && (
+        <div className="outline-children">
+          {item.children.map((child) => (
+            <OutlineNode key={child.slug} item={child} activeOutlineSlug={activeOutlineSlug} collapsed={collapsed} onToggle={onToggle} onHeadingClick={onHeadingClick} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function containsPath(node: TypeOpenTreeNode, targetPath: string): boolean {
@@ -82,12 +130,14 @@ function TreeNode({ node, currentFilePath, revealFilePath, revealRequest, select
   )
 }
 
-export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onHeadingClick, onRequestFocusEditor, folderPath, onCreateEntry, onRenameEntry, onTrashEntry, onRefreshFolder }: SidebarProps) {
+export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey, activeOutlineSlug, fileTree, currentFilePath, revealFilePath, revealRequest, onOpenFile, onHeadingClick, onRequestFocusEditor, folderPath, onCreateEntry, onRenameEntry, onTrashEntry, onRefreshFolder }: SidebarProps) {
   const sidebarRef = useRef<HTMLElement>(null)
   const outlineRef = useRef<HTMLDivElement>(null)
   const [selectedNode, setSelectedNode] = useState<TypeOpenTreeNode | null>(null)
   const [sortMode, setSortMode] = useState<SortMode>('name-asc')
+  const [collapsedOutline, setCollapsedOutline] = useState<Set<string>>(() => new Set())
   const sortedTree = useMemo(() => sortNodes(fileTree, sortMode), [fileTree, sortMode])
+  const outlineTree = useMemo(() => buildOutlineTree(outline), [outline])
   const articles = useMemo(() => {
     const flattened: TypeOpenTreeNode[] = []
     const visit = (nodes: TypeOpenTreeNode[]) => nodes.forEach((node) => {
@@ -99,11 +149,27 @@ export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug,
   }, [fileTree])
 
   useEffect(() => {
+    setCollapsedOutline(new Set())
+  }, [outlineDocumentKey])
+
+  useEffect(() => {
+    if (!activeOutlineSlug) return
+    const ancestors = outlineAncestorSlugs(outlineTree, activeOutlineSlug)
+    if (!ancestors.length) return
+    setCollapsedOutline((current) => {
+      if (!ancestors.some((slug) => current.has(slug))) return current
+      const next = new Set(current)
+      ancestors.forEach((slug) => next.delete(slug))
+      return next
+    })
+  }, [activeOutlineSlug, outlineTree])
+
+  useEffect(() => {
     if (!visible || tab !== 'outline' || !activeOutlineSlug) return
     const active = outlineRef.current?.querySelector<HTMLElement>('.outline-row.active')
     if (!active) return
     requestAnimationFrame(() => active.scrollIntoView({ block: 'nearest', behavior: navigationScrollBehavior() }))
-  }, [activeOutlineSlug, tab, visible])
+  }, [activeOutlineSlug, collapsedOutline, tab, visible])
 
   useEffect(() => {
     if (visible || !sidebarRef.current?.contains(document.activeElement)) return
@@ -121,10 +187,26 @@ export function Sidebar({ visible, tab, onTabChange, outline, activeOutlineSlug,
         {tab === 'outline' && (
           <div className="outline-list sidebar-panel" ref={outlineRef}>
             {outline.length === 0 && <div className="sidebar-empty">No headings</div>}
-            {outline.map((item, index) => (
-              <button key={`${item.slug}-${index}`} className={`outline-row level-${item.level} ${activeOutlineSlug === item.slug ? 'active' : ''}`} onClick={() => onHeadingClick(item)} title={`Line ${item.line}`}>
-                {item.text}
-              </button>
+            {outline.length > 0 && (
+              <div className="outline-toolbar" aria-label="Outline controls">
+                <button onClick={() => setCollapsedOutline(new Set())}>Expand all</button>
+                <button onClick={() => setCollapsedOutline(new Set(collapsibleOutlineSlugs(outlineTree)))}>Collapse all</button>
+              </div>
+            )}
+            {outlineTree.map((item) => (
+              <OutlineNode
+                key={item.slug}
+                item={item}
+                activeOutlineSlug={activeOutlineSlug}
+                collapsed={collapsedOutline}
+                onToggle={(slug) => setCollapsedOutline((current) => {
+                  const next = new Set(current)
+                  if (next.has(slug)) next.delete(slug)
+                  else next.add(slug)
+                  return next
+                })}
+                onHeadingClick={onHeadingClick}
+              />
             ))}
           </div>
         )}

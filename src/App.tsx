@@ -12,6 +12,7 @@ import { Sidebar, type SidebarTab } from './components/Sidebar'
 import { createExportHtml, documentTitle, extractOutline, getDocumentStats, type OutlineItem } from './lib/markdown'
 import { replaceAllSearch, searchText } from './lib/search'
 import { buildRecoverySnapshot, parseRecoverySnapshot } from './lib/recovery'
+import { codeFenceSnippet, normalizeCodeBlockLanguage } from './lib/codeLanguages'
 
 const EMPTY_DOCUMENT = ''
 const PREF_KEY = 'typeopen.preferences.v1'
@@ -30,6 +31,7 @@ const DEFAULT_PREFS: TypeOpenPreferences = {
   spellCheck: true,
   autosave: false,
   autoPairBrackets: true,
+  defaultCodeLanguage: 'text',
   statusBar: true,
   toolbar: false,
   sidebarDefault: true
@@ -47,7 +49,9 @@ function loadPageSetup(): PageSetupState {
 function loadPreferences(): TypeOpenPreferences {
   try {
     const raw = localStorage.getItem(PREF_KEY)
-    return raw ? { ...DEFAULT_PREFS, ...JSON.parse(raw) } : DEFAULT_PREFS
+    if (!raw) return DEFAULT_PREFS
+    const parsed = JSON.parse(raw)
+    return { ...DEFAULT_PREFS, ...parsed, defaultCodeLanguage: normalizeCodeBlockLanguage(parsed?.defaultCodeLanguage) }
   } catch {
     return DEFAULT_PREFS
   }
@@ -659,7 +663,7 @@ export default function App() {
   const insertSnippet = useCallback((kind: string) => {
     const snippets: Record<string, string> = {
       paragraph: '\n', h1: '# Heading', h2: '## Heading', h3: '### Heading', h4: '#### Heading', h5: '##### Heading', h6: '###### Heading',
-      quote: '> Quote', 'code-fence': '```text\ncode\n```', 'math-block': '$$\nE = mc^2\n$$', 'ordered-list': '1. Item', 'unordered-list': '- Item', 'task-list': '- [ ] Task',
+      quote: '> Quote', 'code-fence': codeFenceSnippet(preferences.defaultCodeLanguage), 'math-block': '$$\nE = mc^2\n$$', 'ordered-list': '1. Item', 'unordered-list': '- Item', 'task-list': '- [ ] Task',
       table: '| Column 1 | Column 2 |\n| --- | --- |\n| Value | Value |', toc: '\n\n[TOC]\n\n', frontmatter: '---\ntitle: Untitled\n---\n', hr: '---',
       link: '[link](https://example.com)', image: '![alt text](assets/image.png)', 'inline-math': '$E = mc^2$', footnote: 'Text[^1]\n\n[^1]: Footnote'
     }
@@ -668,7 +672,7 @@ export default function App() {
       editorRef.current?.insertMarkdown(snippet)
       editorRef.current?.focus()
     }
-  }, [])
+  }, [preferences.defaultCodeLanguage])
 
   const navigateMatch = useCallback((delta: number) => {
     if (!matches.length) return
@@ -1002,7 +1006,7 @@ export default function App() {
         <button className="document-tab-add" title="New Tab" aria-label="New Tab" onClick={newDocument}><Plus size={14} /></button>
       </div>
       <div className="workspace">
-        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} activeOutlineSlug={activeOutlineSlug} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onHeadingClick={scrollToHeading} onRequestFocusEditor={() => editorRef.current?.focus()} folderPath={folderPath} onCreateEntry={beginCreateFolderEntry} onRenameEntry={beginRenameFolderEntry} onTrashEntry={(node) => void trashFolderEntry(node)} onRefreshFolder={() => { if (folderPath) void refreshFolder(folderPath) }} />
+        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} outlineDocumentKey={activeDocumentId} activeOutlineSlug={activeOutlineSlug} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onHeadingClick={scrollToHeading} onRequestFocusEditor={() => editorRef.current?.focus()} folderPath={folderPath} onCreateEntry={beginCreateFolderEntry} onRenameEntry={beginRenameFolderEntry} onTrashEntry={(node) => void trashFolderEntry(node)} onRefreshFolder={() => { if (folderPath) void refreshFolder(folderPath) }} />
         <main className="document-workspace">
           <FindBar
             visible={findVisible}
@@ -1043,6 +1047,7 @@ export default function App() {
               imagePreview={previewImage}
               toolbarVisible={preferences.toolbar}
               autoPairBrackets={preferences.autoPairBrackets}
+              defaultCodeLanguage={preferences.defaultCodeLanguage}
             />
           </div>
           {preferences.statusBar && (

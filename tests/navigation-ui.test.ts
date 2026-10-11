@@ -7,6 +7,10 @@ import { Sidebar } from '../src/components/Sidebar'
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
+if (!HTMLElement.prototype.scrollIntoView) {
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: vi.fn(), configurable: true })
+}
+
 afterEach(() => {
   document.body.innerHTML = ''
 })
@@ -71,6 +75,7 @@ describe('navigation accessibility', () => {
       tab: 'outline' as const,
       onTabChange: () => undefined,
       outline: [],
+      outlineDocumentKey: 'doc-1',
       activeOutlineSlug: null,
       fileTree: [],
       currentFilePath: null,
@@ -122,6 +127,7 @@ describe('navigation accessibility', () => {
         tab: 'files',
         onTabChange: () => undefined,
         outline: [],
+        outlineDocumentKey: 'doc-1',
         activeOutlineSlug: null,
         fileTree,
         currentFilePath: null,
@@ -145,6 +151,65 @@ describe('navigation accessibility', () => {
     expect(onRefreshFolder).toHaveBeenCalledTimes(1)
     expect(Array.from(host.querySelectorAll('.tree-row.file span:last-child')).map((element) => element.textContent)).toEqual(['a.md', 'z.md'])
     expect(fileTree.map((node) => node.name)).toEqual(['z.md', 'a.md'])
+
+    await act(async () => root.unmount())
+  })
+
+  it('collapses outline branches and reopens the active heading path', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    const onHeadingClick = vi.fn()
+    const outline = [
+      { level: 1, text: 'Root', line: 1, slug: 'root' },
+      { level: 2, text: 'Child', line: 3, slug: 'child' },
+      { level: 3, text: 'Leaf', line: 5, slug: 'leaf' },
+      { level: 2, text: 'Sibling', line: 7, slug: 'sibling' }
+    ]
+    const baseProps = {
+      visible: true,
+      tab: 'outline' as const,
+      onTabChange: () => undefined,
+      outline,
+      outlineDocumentKey: 'doc-outline',
+      fileTree: [],
+      currentFilePath: null,
+      revealFilePath: null,
+      revealRequest: 0,
+      onOpenFile: () => undefined,
+      onHeadingClick,
+      onRequestFocusEditor: () => undefined,
+      folderPath: null,
+      onCreateEntry: () => undefined,
+      onRenameEntry: () => undefined,
+      onTrashEntry: () => undefined,
+      onRefreshFolder: () => undefined
+    }
+
+    await act(async () => {
+      root.render(createElement(Sidebar, { ...baseProps, activeOutlineSlug: null }))
+    })
+
+    const rootToggle = host.querySelector<HTMLButtonElement>('.outline-toggle[aria-label="Collapse Root"]')
+    expect(rootToggle?.getAttribute('aria-expanded')).toBe('true')
+    await act(async () => rootToggle?.click())
+    expect(host.querySelector('.outline-row[title="Line 5"]')).toBeNull()
+    expect(host.querySelector<HTMLButtonElement>('.outline-toggle[aria-label="Expand Root"]')?.getAttribute('aria-expanded')).toBe('false')
+
+    await act(async () => {
+      root.render(createElement(Sidebar, { ...baseProps, activeOutlineSlug: 'leaf' }))
+      await Promise.resolve()
+    })
+    expect(host.querySelector('.outline-row[title="Line 5"]')?.textContent).toBe('Leaf')
+    expect(host.querySelector('.outline-row.active')?.textContent).toBe('Leaf')
+
+    const collapseAll = Array.from(host.querySelectorAll<HTMLButtonElement>('.outline-toolbar button')).find((button) => button.textContent === 'Collapse all')
+    await act(async () => collapseAll?.click())
+    expect(host.querySelector('.outline-row[title="Line 3"]')).toBeNull()
+
+    const expandAll = Array.from(host.querySelectorAll<HTMLButtonElement>('.outline-toolbar button')).find((button) => button.textContent === 'Expand all')
+    await act(async () => expandAll?.click())
+    expect(host.querySelector('.outline-row[title="Line 5"]')?.textContent).toBe('Leaf')
 
     await act(async () => root.unmount())
   })

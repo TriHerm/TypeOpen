@@ -11,6 +11,10 @@ export interface OutlineItem {
   slug: string
 }
 
+export interface OutlineTreeItem extends OutlineItem {
+  children: OutlineTreeItem[]
+}
+
 export interface DocumentStats {
   words: number
   characters: number
@@ -72,6 +76,36 @@ export function extractOutline(markdown: string): OutlineItem[] {
     })
   })
   return result
+}
+
+export function buildOutlineTree(items: OutlineItem[]): OutlineTreeItem[] {
+  const roots: OutlineTreeItem[] = []
+  const stack: OutlineTreeItem[] = []
+
+  for (const item of items) {
+    const node: OutlineTreeItem = { ...item, children: [] }
+    while (stack.length && stack[stack.length - 1].level >= node.level) stack.pop()
+    const parent = stack.at(-1)
+    if (parent) parent.children.push(node)
+    else roots.push(node)
+    stack.push(node)
+  }
+
+  return roots
+}
+
+export function outlineAncestorSlugs(items: OutlineTreeItem[], targetSlug: string): string[] {
+  const ancestors: string[] = []
+  const visit = (nodes: OutlineTreeItem[]): boolean => {
+    for (const node of nodes) {
+      if (node.slug === targetSlug) return true
+      ancestors.push(node.slug)
+      if (visit(node.children)) return true
+      ancestors.pop()
+    }
+    return false
+  }
+  return visit(items) ? ancestors : []
 }
 
 export function getDocumentStats(markdown: string): DocumentStats {
