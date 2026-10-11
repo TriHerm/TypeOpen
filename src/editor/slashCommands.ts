@@ -70,3 +70,10 @@ export function parseSlashQuery(text: string, caretOffset: number): SlashQueryMa
     length: slashText.length
   }
 }
+
+export function isRootEditableSelection(contentRoot: HTMLElement, anchorNode: Node): boolean {
+  const anchorElement = anchorNode.nodeType === Node.ELEMENT_NODE
+    ? anchorNode as Element
+    : anchorNode.parentElement
+  return anchorElement?.closest('[contenteditable="true"]') === contentRoot
+}

@@ -81,6 +81,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         typeOpenWebView.onTypeOpenCommand = { [weak self] command, payload in
             self?.bridge.sendCommand(command, payload: payload)
         }
+        bridge.onDocumentStateChanged = { [weak typeOpenWebView] state in
+            typeOpenWebView?.editorCommandsEnabled = state.editorCommandsEnabled
+        }
         bridge.onCloseAfterSave = { [weak self] in self?.closeAfterSave() }
         webView.configuration.userContentController.add(bridge, name: "typeopen")
         webView.navigationDelegate = bridge

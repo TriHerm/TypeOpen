@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterSlashCommands, parseSlashQuery } from '../src/editor/slashCommands'
+import { filterSlashCommands, isRootEditableSelection, parseSlashQuery } from '../src/editor/slashCommands'
 
 describe('editor slash commands', () => {
   it('keeps the initial menu compact', () => {
@@ -21,5 +21,21 @@ describe('editor slash commands', () => {
     expect(parseSlashQuery('hello /ta', 9)).toEqual({ query: 'ta', start: 6, length: 3 })
     expect(parseSlashQuery('https://example.com', 8)).toBeNull()
     expect(parseSlashQuery('word/test', 9)).toBeNull()
+  })
+
+  it('rejects selections owned by nested contenteditable editors', () => {
+    const root = document.createElement('div')
+    root.setAttribute('contenteditable', 'true')
+    const rootText = document.createTextNode('/table')
+    root.append(rootText)
+
+    const nestedEditor = document.createElement('div')
+    nestedEditor.setAttribute('contenteditable', 'true')
+    const nestedText = document.createTextNode('/code')
+    nestedEditor.append(nestedText)
+    root.append(nestedEditor)
+
+    expect(isRootEditableSelection(root, rootText)).toBe(true)
+    expect(isRootEditableSelection(root, nestedText)).toBe(false)
   })
 })

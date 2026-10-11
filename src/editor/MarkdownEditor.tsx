@@ -47,7 +47,7 @@ import { typeOpenCommentPlugin } from './commentPlugin'
 import { typeOpenFootnotePlugin } from './footnotePlugin'
 import { typeOpenMathPlugin } from './mathPlugin'
 import { typeOpenTocPlugin } from './tocPlugin'
-import { filterSlashCommands, parseSlashQuery, type SlashCommand } from './slashCommands'
+import { filterSlashCommands, isRootEditableSelection, parseSlashQuery, type SlashCommand } from './slashCommands'
 
 type EditorRealm = Parameters<NonNullable<RealmPlugin['postInit']>>[0]
 
@@ -165,27 +165,31 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     [slashMenu]
   )
 
-  const syncSlashMenu = useCallback(() => {
+  const getSlashContext = useCallback(() => {
     if (sourceMode || readOnly) {
-      setSlashMenu(null)
-      return
+      return null
     }
     const contentRoot = surfaceRef.current?.querySelector<HTMLElement>('.typeopen-editor-content')
     const selection = window.getSelection()
     if (!contentRoot || !selection || !selection.isCollapsed || !selection.anchorNode || !contentRoot.contains(selection.anchorNode)) {
-      setSlashMenu(null)
-      return
+      return null
     }
-    if (selection.anchorNode.nodeType !== Node.TEXT_NODE) {
-      setSlashMenu(null)
-      return
+    if (selection.anchorNode.nodeType !== Node.TEXT_NODE || !isRootEditableSelection(contentRoot, selection.anchorNode)) {
+      return null
     }
     const match = parseSlashQuery(selection.anchorNode.textContent ?? '', selection.anchorOffset)
-    if (!match) {
+    if (!match) return null
+    return { contentRoot, selection, match }
+  }, [readOnly, sourceMode])
+
+  const syncSlashMenu = useCallback(() => {
+    const context = getSlashContext()
+    if (!context) {
       setSlashMenu(null)
       return
     }
 
+    const { selection, match } = context
     const range = selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null
     const rect = range && typeof range.getBoundingClientRect === 'function'
       ? range.getBoundingClientRect()
@@ -198,7 +202,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       ? below
       : Math.max(8, rect.top - menuHeight - 7)
     setSlashMenu({ query: match.query, x, y })
-  }, [readOnly, sourceMode])
+  }, [getSlashContext])
 
   const removeSlashQuery = useCallback(() => {
     const context = getMutableRichEditor()
@@ -228,6 +232,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   const handleSurfaceKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!slashMenu) return
+    if (!getSlashContext()) {
+      setSlashMenu(null)
+      return
+    }
     if (event.key === 'Escape') {
       event.preventDefault()
       setSlashMenu(null)
@@ -244,11 +252,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       event.preventDefault()
       executeSlashCommand(visibleSlashCommands[Math.min(slashIndex, visibleSlashCommands.length - 1)])
     }
-  }, [executeSlashCommand, slashIndex, slashMenu, visibleSlashCommands])
+  }, [executeSlashCommand, getSlashContext, slashIndex, slashMenu, visibleSlashCommands])
 
   useEffect(() => {
     setSlashIndex(0)
   }, [slashMenu?.query])
+
+  useEffect(() => {
+    if (sourceMode || readOnly) setSlashMenu(null)
+  }, [readOnly, sourceMode])
 
   useEffect(() => {
     document.addEventListener('selectionchange', syncSlashMenu)

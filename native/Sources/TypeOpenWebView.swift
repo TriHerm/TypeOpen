@@ -3,9 +3,11 @@ import WebKit
 
 final class TypeOpenWebView: WKWebView {
     var onTypeOpenCommand: ((String, Any?) -> Void)?
+    var editorCommandsEnabled = false
 
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = super.menu(for: event) ?? NSMenu()
+        guard editorCommandsEnabled else { return menu }
         if !menu.items.isEmpty, menu.items.last?.isSeparatorItem != true {
             menu.addItem(.separator())
         }
@@ -18,15 +20,15 @@ final class TypeOpenWebView: WKWebView {
 
     func makeTypeOpenCommandMenu() -> NSMenu {
         let menu = NSMenu(title: "TypeOpen")
-        menu.addItem(commandItem("Bold", command: "format", payload: "bold"))
-        menu.addItem(commandItem("Italic", command: "format", payload: "italic"))
-        menu.addItem(commandItem("Inline Code", command: "format", payload: "code"))
-        menu.addItem(commandItem("Clear Formatting", command: "clear-format"))
+        menu.addItem(commandItem("Bold", command: "context-format", payload: "bold"))
+        menu.addItem(commandItem("Italic", command: "context-format", payload: "italic"))
+        menu.addItem(commandItem("Inline Code", command: "context-format", payload: "code"))
+        menu.addItem(commandItem("Clear Formatting", command: "context-clear-format"))
         menu.addItem(.separator())
-        menu.addItem(commandItem("Block Quote", command: "insert", payload: "quote"))
-        menu.addItem(commandItem("Task List", command: "insert", payload: "task-list"))
-        menu.addItem(commandItem("Code Block", command: "insert", payload: "code-fence"))
-        menu.addItem(commandItem("Table", command: "insert", payload: "table"))
+        menu.addItem(commandItem("Block Quote", command: "context-insert", payload: "quote"))
+        menu.addItem(commandItem("Task List", command: "context-insert", payload: "task-list"))
+        menu.addItem(commandItem("Code Block", command: "context-insert", payload: "code-fence"))
+        menu.addItem(commandItem("Table", command: "context-insert", payload: "table"))
         return menu
     }
 

@@ -20,7 +20,7 @@ Homebrew maps the short tap name `triherm/tap` to `https://github.com/TriHerm/ho
 - Release: `v0.1.4`
 - Artifact: `TypeOpen-0.1.4-arm64.dmg`
 - URL: `https://github.com/TriHerm/TypeOpen/releases/download/v0.1.4/TypeOpen-0.1.4-arm64.dmg`
-- SHA-256: `223ac6297fbbd1720c92ee60933cb22011a20b77bc3bf4860e896e065107b09d`
+- SHA-256: `a0812ab14646f52483add7ded60b8938448a5977b216b7ca2ee3db67a333052a`
 - Architecture: Apple Silicon (`arm64`) only
 - Minimum macOS: 13 Ventura
 - Bundle identifier: `com.triherm.typeopen`

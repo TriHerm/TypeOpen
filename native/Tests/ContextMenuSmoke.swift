@@ -19,7 +19,15 @@ struct ContextMenuSmoke {
             eventNumber: 1,
             clickCount: 1,
             pressure: 1
-        ), let menu = view.menu(for: event),
+        ) else {
+            fatalError("Could not create context-menu event.")
+        }
+
+        let disabledMenu = view.menu(for: event)
+        precondition(disabledMenu?.items.contains(where: { $0.title == "TypeOpen" }) != true, "TypeOpen commands must stay hidden until rich editing is enabled.")
+
+        view.editorCommandsEnabled = true
+        guard let menu = view.menu(for: event),
            let typeOpenItem = menu.items.first(where: { $0.title == "TypeOpen" }),
            let submenu = typeOpenItem.submenu else {
             fatalError("TypeOpen submenu is missing from the WKWebView context menu.")

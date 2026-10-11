@@ -25,6 +25,7 @@ struct NativeDocumentState {
     var dirty = false
     var hasDirtyDocuments = false
     var title = "Untitled"
+    var editorCommandsEnabled = false
 }
 
 enum TypeOpenNativeError: LocalizedError {
@@ -401,7 +402,8 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
                 folderPath: requestedFolderPath.flatMap { grants.isCurrentFolder($0) ? normalizedPath($0) : nil },
                 dirty: (raw["dirty"] as? Bool) ?? false,
                 hasDirtyDocuments: (raw["hasDirtyDocuments"] as? Bool) ?? false,
-                title: String(((raw["title"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Untitled").prefix(512))
+                title: String(((raw["title"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Untitled").prefix(512)),
+                editorCommandsEnabled: (raw["editorCommandsEnabled"] as? Bool) ?? false
             )
             updateWindowDocumentState()
             onDocumentStateChanged?(documentState)

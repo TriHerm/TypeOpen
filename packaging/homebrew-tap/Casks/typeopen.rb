@@ -1,6 +1,6 @@
 cask "typeopen" do
   version "0.1.4"
-  sha256 "223ac6297fbbd1720c92ee60933cb22011a20b77bc3bf4860e896e065107b09d"
+  sha256 "a0812ab14646f52483add7ded60b8938448a5977b216b7ca2ee3db67a333052a"
 
   url "https://github.com/TriHerm/TypeOpen/releases/download/v#{version}/TypeOpen-#{version}-arm64.dmg"
   name "TypeOpen"

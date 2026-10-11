@@ -11,7 +11,7 @@ declare global {
   interface TypeOpenApi {
     platform: string
     invoke<T = unknown>(channel: string, payload?: unknown): Promise<T>
-    setDocumentState(state: { filePath: string | null; folderPath: string | null; dirty: boolean; hasDirtyDocuments: boolean; title: string }): void
+    setDocumentState(state: { filePath: string | null; folderPath: string | null; dirty: boolean; hasDirtyDocuments: boolean; title: string; editorCommandsEnabled: boolean }): void
     rendererReady(): void
     closeAfterSave(): void
     onCommand(callback: (message: { command: string; payload: unknown }) => void): () => void
