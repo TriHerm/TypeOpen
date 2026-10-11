@@ -384,6 +384,8 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     private var documentContentFingerprints: [String: UInt64] = [:]
     private(set) var documentState = NativeDocumentState()
 
+    var recoveryLifecycleReady: Bool { rendererIsReady }
+
     var onCloseAfterSave: (() -> Void)?
     var onDocumentStateChanged: ((NativeDocumentState) -> Void)?
 
@@ -695,6 +697,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
                 title: String(((raw["title"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Untitled").prefix(512)),
                 editorCommandsEnabled: (raw["editorCommandsEnabled"] as? Bool) ?? false
             )
+            if !documentState.hasDirtyDocuments { clearRecoverySnapshot() }
             let openPaths = (raw["openFilePaths"] as? [String]) ?? []
             syncDocumentWatchers(openPaths)
             updateWindowDocumentState()
@@ -917,14 +920,19 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
 
     private func loadRecoverySnapshot() throws -> Any? {
         let url = try recoveryFileURL(createDirectory: false)
-        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        guard let size = (attributes[.size] as? NSNumber)?.intValue, size <= maxRecoveryBytes else {
+        var status = stat()
+        guard lstat(url.path, &status) == 0 else {
+            if errno == ENOENT { return nil }
+            clearRecoverySnapshot()
+            return nil
+        }
+        guard (status.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG) else {
             clearRecoverySnapshot()
             return nil
         }
         do {
-            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+            let text = try readStableTextFile(url.path, maximumBytes: maxRecoveryBytes)
+            let data = Data(text.utf8)
             guard let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 clearRecoverySnapshot()
                 return nil

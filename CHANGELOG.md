@@ -17,6 +17,7 @@ Replacement-workflow reliability and file navigation.
 - Added outline presentation preferences for flat versus hierarchical navigation and a maximum visible heading level from H1 through H6, while preserving full-document heading navigation and active-section tracking.
 - Added canonical GitHub-style Alerts (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`) as editable rich blocks with exact Markdown round-trip, slash-command insertion and styled HTML/PDF/PNG/Print output.
 - Added CommonMark reference-style links in rich mode for full, collapsed and shortcut forms, preserving definitions and shared/unused references while keeping destination/title editing literal in Source Mode.
+- Hardened unsaved-buffer recovery lifecycle so the host cannot clear a valid startup snapshot before it is loaded, stale dirty snapshots are removed immediately once all open documents are clean, and the native loader rejects unsafe recovery-file indirection.
 
 ## 0.1.6 — 2026-10-10
 

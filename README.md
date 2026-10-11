@@ -33,7 +33,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Fenced code blocks with line numbers, Tab/Shift-Tab and native Paragraph Indent/Outdent commands, wrapping, per-block language selection and a configurable default language for newly inserted fences.
 - Document outline with hierarchical or flat presentation, configurable H1–H6 depth, branch collapse/expand, Expand All / Collapse All and active-heading reveal.
 - Literal/regex find and replace with case/whole-word controls, recursive folder search, spell checking, word/character stats and optional autosave.
-- Private unsaved-buffer recovery plus native external-file conflict detection and **Reload from Disk**; recovered buffers reopen without filesystem write authority and require an explicit Save As.
+- Private unsaved-buffer recovery plus native external-file conflict detection and **Reload from Disk**; recovered buffers reopen without filesystem write authority and require an explicit Save As, and stale recovery is cleared immediately once all documents are clean.
 - Light, dark and system appearance settings plus explicitly selected local custom CSS themes with external-resource/executable CSS blocked.
 - Page Setup for Letter/A4/Legal/A5/Tabloid, portrait/landscape orientation and per-side margins used by PDF export and printing.
 - Compact right-click TypeOpen commands plus a searchable `/` command palette for common Markdown blocks.

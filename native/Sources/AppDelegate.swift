@@ -139,6 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if bridge?.recoveryLifecycleReady == true, bridge?.documentState.hasDirtyDocuments != true { bridge?.clearRecoverySnapshot() }
         guard !forceClose, bridge?.documentState.hasDirtyDocuments == true else {
             quitAfterSave = false
             terminating = true
@@ -170,6 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         if !terminating && !forceClose {
             quitAfterSave = false
         }
+        if bridge?.recoveryLifecycleReady == true, bridge?.documentState.hasDirtyDocuments != true { bridge?.clearRecoverySnapshot() }
         guard !forceClose, bridge?.documentState.hasDirtyDocuments == true else { return true }
         switch runCloseAlert() {
         case .alertFirstButtonReturn:
