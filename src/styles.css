@@ -4,44 +4,139 @@
   text-rendering: optimizeLegibility;
   --editor-font-size: 17px;
   --content-width: 780px;
-  --bg: #fbfbfb;
-  --surface: #f4f4f4;
-  --surface-2: #ededed;
-  --text: #242424;
-  --muted: #747474;
-  --border: #dddddd;
-  --accent: #276bb0;
-  --accent-soft: #e4eef8;
-  --code: #f4f5f6;
+  --bg: #fbfbfa;
+  --surface: #f4f4f2;
+  --surface-2: #ececea;
+  --text: #222325;
+  --muted: #6d6f73;
+  --border: #dcdcd8;
+  --accent: #2b6ca8;
+  --accent-soft: #e5eef7;
+  --control-bg: #ffffff;
+  --popover-bg: #fafaf9;
+  --code: #eef0f2;
+  --code-bg: #f3f4f5;
+  --code-surface: #eceeef;
+  --code-gutter: #e8eaec;
+  --code-active: #e6e9ec;
+  --code-border: #d5d8dc;
+  --code-text: #282b2f;
+  --code-muted: #666b71;
+  --code-selection: #cfe2f5;
+  --code-syntax-keyword: #315f9c;
+  --code-syntax-variable: #3d4650;
+  --code-syntax-function: #6a4fa3;
+  --code-syntax-string: #8b4e2d;
+  --code-syntax-number: #0d7281;
+  --code-syntax-type: #80651d;
+  --code-syntax-tag: #8c4775;
+  --code-syntax-operator: #527032;
+  --code-syntax-comment: #666b71;
+  --code-syntax-invalid: #b4232d;
   --sidebar-width: 238px;
+  color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --bg: #171717;
-  --surface: #202020;
-  --surface-2: #292929;
-  --text: #ebebeb;
-  --muted: #a2a2a2;
-  --border: #343434;
-  --accent: #79b8f3;
-  --accent-soft: #20364c;
-  --code: #101010;
+  --bg: #151515;
+  --surface: #1d1d1d;
+  --surface-2: #272727;
+  --text: #ededec;
+  --muted: #9b9b9a;
+  --border: #343432;
+  --accent: #8abcf1;
+  --accent-soft: #20364b;
+  --control-bg: #1c1e21;
+  --popover-bg: #202225;
+  --code: #222428;
+  --code-bg: #141619;
+  --code-surface: #1b1e22;
+  --code-gutter: #191c20;
+  --code-active: #20252b;
+  --code-border: #32363d;
+  --code-text: #e6e8eb;
+  --code-muted: #8e969f;
+  --code-selection: #274766;
+  --code-syntax-keyword: #8bbcff;
+  --code-syntax-variable: #d8dee6;
+  --code-syntax-function: #c2a7f2;
+  --code-syntax-string: #d1a675;
+  --code-syntax-number: #7ec6c8;
+  --code-syntax-type: #dfc277;
+  --code-syntax-tag: #df98c6;
+  --code-syntax-operator: #a7c982;
+  --code-syntax-comment: #7f8995;
+  --code-syntax-invalid: #ff7b86;
   color-scheme: dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
-    --bg: #171717;
-    --surface: #202020;
-    --surface-2: #292929;
-    --text: #ebebeb;
-    --muted: #a2a2a2;
-    --border: #343434;
-    --accent: #79b8f3;
-    --accent-soft: #20364c;
-    --code: #101010;
+    --bg: #151515;
+    --surface: #1d1d1d;
+    --surface-2: #272727;
+    --text: #ededec;
+    --muted: #9b9b9a;
+    --border: #343432;
+    --accent: #8abcf1;
+    --accent-soft: #20364b;
+    --control-bg: #1c1e21;
+    --popover-bg: #202225;
+    --code: #222428;
+    --code-bg: #141619;
+    --code-surface: #1b1e22;
+    --code-gutter: #191c20;
+    --code-active: #20252b;
+    --code-border: #32363d;
+    --code-text: #e6e8eb;
+    --code-muted: #8e969f;
+    --code-selection: #274766;
+    --code-syntax-keyword: #8bbcff;
+    --code-syntax-variable: #d8dee6;
+    --code-syntax-function: #c2a7f2;
+    --code-syntax-string: #d1a675;
+    --code-syntax-number: #7ec6c8;
+    --code-syntax-type: #dfc277;
+    --code-syntax-tag: #df98c6;
+    --code-syntax-operator: #a7c982;
+    --code-syntax-comment: #7f8995;
+    --code-syntax-invalid: #ff7b86;
     color-scheme: dark;
   }
+}
+
+/*
+ * MDXEditor ships with an independent light palette. Remap its public color
+ * tokens to TypeOpen so rich-editor controls and portalled menus follow the
+ * selected application theme instead of falling back to white surfaces.
+ */
+:root,
+.typeopen-mdx-root {
+  --basePageBg: var(--bg);
+  --baseBase: var(--surface);
+  --baseBgSubtle: color-mix(in srgb, var(--surface) 78%, var(--bg));
+  --baseBg: var(--surface-2);
+  --baseBgHover: color-mix(in srgb, var(--surface-2) 88%, var(--text));
+  --baseBgActive: color-mix(in srgb, var(--surface-2) 82%, var(--text));
+  --baseLine: var(--border);
+  --baseBorder: var(--border);
+  --baseBorderHover: color-mix(in srgb, var(--border) 64%, var(--text));
+  --baseSolid: var(--muted);
+  --baseSolidHover: color-mix(in srgb, var(--muted) 78%, var(--text));
+  --baseText: var(--muted);
+  --baseTextContrast: var(--text);
+  --accentBase: color-mix(in srgb, var(--accent-soft) 42%, var(--bg));
+  --accentBgSubtle: color-mix(in srgb, var(--accent-soft) 66%, var(--bg));
+  --accentBg: var(--accent-soft);
+  --accentBgHover: color-mix(in srgb, var(--accent-soft) 86%, var(--accent));
+  --accentBgActive: color-mix(in srgb, var(--accent-soft) 78%, var(--accent));
+  --accentLine: color-mix(in srgb, var(--accent) 38%, var(--border));
+  --accentBorder: color-mix(in srgb, var(--accent) 52%, var(--border));
+  --accentBorderHover: color-mix(in srgb, var(--accent) 70%, var(--border));
+  --accentSolid: var(--accent);
+  --accentSolidHover: color-mix(in srgb, var(--accent) 82%, var(--text));
+  --accentText: var(--accent);
+  --accentTextContrast: var(--text);
 }
 
 * { box-sizing: border-box; }
@@ -111,6 +206,81 @@ button { -webkit-app-region: no-drag; }
 .typeopen-editor-content code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: var(--code); border-radius: 4px; padding: .12em .32em; font-size: .9em; }
 .typeopen-editor-content pre { background: var(--code); border-radius: 7px; overflow: auto; padding: 13px 15px; }
 .typeopen-editor-content pre code { padding: 0; background: none; }
+.typeopen-mdx-root [class*="_codeMirrorWrapper_"] {
+  border-color: var(--code-border);
+  background: var(--code-surface);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent);
+}
+.typeopen-mdx-root [class*="_codeMirrorWrapper_"]:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--code-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.typeopen-mdx-root [class*="_codeMirrorToolbar_"] {
+  background: var(--code-surface);
+  border-left: 1px solid var(--code-border);
+  border-bottom: 1px solid var(--code-border);
+}
+.typeopen-mdx-root [class*="_toolbarCodeBlockLanguageSelectTrigger_"] {
+  background: var(--code-surface);
+  color: var(--code-text);
+  border: 1px solid transparent;
+}
+.typeopen-mdx-root [class*="_toolbarCodeBlockLanguageSelectTrigger_"]:hover,
+.typeopen-mdx-root [class*="_toolbarCodeBlockLanguageSelectTrigger_"][data-state="open"] {
+  background: var(--code-active);
+  border-color: var(--code-border);
+}
+.typeopen-mdx-root .cm-editor,
+.typeopen-mdx-root .cm-scroller,
+.typeopen-mdx-root .cm-content {
+  background: var(--code-bg) !important;
+  color: var(--code-text);
+}
+.typeopen-mdx-root .cm-editor { border-radius: 5px; }
+.typeopen-mdx-root .cm-scroller {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  scrollbar-color: var(--code-border) transparent;
+}
+.typeopen-mdx-root .cm-gutters {
+  background: var(--code-gutter) !important;
+  color: var(--code-muted);
+  border-right: 1px solid var(--code-border);
+}
+.typeopen-mdx-root .cm-activeLine,
+.typeopen-mdx-root .cm-activeLineGutter {
+  background: var(--code-active) !important;
+}
+.typeopen-mdx-root .cm-cursor,
+.typeopen-mdx-root .cm-dropCursor {
+  border-left-color: var(--accent) !important;
+}
+.typeopen-mdx-root .cm-selectionBackground,
+.typeopen-mdx-root .cm-content ::selection {
+  background: var(--code-selection) !important;
+}
+.typeopen-mdx-root .cm-lineNumbers .cm-gutterElement { color: var(--code-muted); }
+
+/* MDXEditor renders select popovers through a portal, outside the editor root. */
+[class*="_toolbarCodeBlockLanguageSelectContent_"],
+[class*="_toolbarNodeKindSelectContainer_"],
+[class*="_toolbarButtonDropdownContainer_"],
+[class*="_selectContainer_"] {
+  background: var(--popover-bg) !important;
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
+}
+[class*="_toolbarCodeBlockLanguageSelectContent_"] [class*="_selectItem_"],
+[class*="_toolbarNodeKindSelectContainer_"] [class*="_selectItem_"],
+[class*="_toolbarButtonDropdownContainer_"] [class*="_selectItem_"],
+[class*="_selectContainer_"] [class*="_selectItem_"] {
+  color: var(--text);
+}
+[class*="_selectItem_"][data-highlighted],
+[class*="_selectItem_"][data-state="checked"] {
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+}
 .typeopen-editor-content table { border-collapse: collapse; width: 100%; margin: 1.2em 0; }
 .typeopen-editor-content th, .typeopen-editor-content td { border: 1px solid var(--border); padding: .45em .65em; }
 .typeopen-editor-content th { background: var(--surface); }

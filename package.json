@@ -1,6 +1,6 @@
 {
   "name": "typeopen",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Open-source Markdown editor for macOS with a focused live editing experience.",
   "main": "electron/main.cjs",
   "scripts": {
@@ -52,8 +52,11 @@
   "license": "Apache-2.0",
   "type": "module",
   "devDependencies": {
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
     "@lexical/list": "^0.48.0",
     "@lexical/rich-text": "^0.48.0",
+    "@lezer/highlight": "^1.2.5",
     "@mdxeditor/editor": "^4.3.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

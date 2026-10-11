@@ -92,7 +92,7 @@ npm run pack
 
 The native application is written to `release/native-arm64/TypeOpen.app`; the compressed image is `release/TypeOpen-<version>-arm64.dmg`. The shell links only system AppKit/WebKit frameworks and reuses the compiled Vite renderer, so it does not package Chromium, Node.js, Electron Framework, or an ASAR. Local builds use ad-hoc signing so bundle integrity can be verified without private credentials. A public Gatekeeper-friendly distribution still requires an Apple Developer ID Application certificate plus Apple notarization credentials.
 
-The verified `0.1.5` Apple Silicon release is about **10.3 MiB installed** and **4.5 MB as a DMG**, down from the Electron-based `0.1.0` package that was roughly 194 MB as a DMG.
+The verified `0.1.6` Apple Silicon release is about **10.3 MiB installed** and **4.5 MB as a DMG**, down from the Electron-based `0.1.0` package that was roughly 194 MB as a DMG.
 
 The retained Electron fallback can still be packaged explicitly with `npm run pack:electron`, `npm run dmg:electron`, or `npm run dmg:electron:universal`. Those commands are migration aids rather than the default distribution path.
 
