@@ -929,10 +929,10 @@ export default function App() {
         if (!editorRef.current?.changeHeadingLevel(payload)) showToast('Place the caret in a heading that can change level')
       }
       else if (command === 'indent') {
-        if (!editorRef.current?.indentList()) showToast('Indent is available for list items')
+        if (!editorRef.current?.indentContent()) showToast('Indent is available for list items and code editors')
       }
       else if (command === 'outdent') {
-        if (!editorRef.current?.outdentList()) showToast('Outdent is available for list items')
+        if (!editorRef.current?.outdentContent()) showToast('Outdent is available for list items and code editors')
       }
       else if (command === 'task-status') {
         if (!editorRef.current?.toggleTaskStatus()) showToast('Task Status is available for the current checklist item')

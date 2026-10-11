@@ -38,7 +38,9 @@ import {
   viewMode$
 } from '@mdxeditor/editor'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { indentLess, indentMore } from '@codemirror/commands'
 import { Prec } from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
 import { $isListItemNode } from '@lexical/list'
 import { $createHeadingNode, type HeadingTagType } from '@lexical/rich-text'
 import { $getSelection, $isRangeSelection, $isTextNode, FORMAT_TEXT_COMMAND, INDENT_CONTENT_COMMAND, OUTDENT_CONTENT_COMMAND, SET_TEXT_FORMAT_COMMAND, type LexicalNode, type TextFormatType } from 'lexical'
@@ -80,8 +82,8 @@ export interface MarkdownEditorHandle {
   getContentEditableHTML(): string
   clearFormat(): boolean
   changeHeadingLevel(direction: 'increase' | 'decrease'): boolean
-  indentList(): boolean
-  outdentList(): boolean
+  indentContent(): boolean
+  outdentContent(): boolean
   toggleTaskStatus(): boolean
   toggleTextFormat(format: Extract<TextFormatType, 'highlight' | 'superscript' | 'subscript'>): boolean
   focus(): void
@@ -99,6 +101,14 @@ interface MarkdownEditorProps {
   autoPairBrackets?: boolean
   defaultCodeLanguage?: string
   onSlashCommand?: (insertKind: string) => void
+}
+
+export function applyFocusedCodeMirrorIndent(surface: HTMLElement | null, direction: 'indent' | 'outdent'): boolean {
+  const active = document.activeElement
+  if (!surface || !(active instanceof HTMLElement) || !surface.contains(active)) return false
+  const view = EditorView.findFromDOM(active)
+  if (!view) return false
+  return direction === 'indent' ? indentMore(view) : indentLess(view)
 }
 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({
@@ -342,14 +352,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       editor.focus()
       return true
     },
-    indentList: () => {
+    indentContent: () => {
+      if (applyFocusedCodeMirrorIndent(surfaceRef.current, 'indent')) return true
       const context = getMutableRichEditor()
       if (!context || !context.realm.getValue(currentListType$)) return false
       const applied = context.editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined)
       if (applied) context.editor.focus()
       return applied
     },
-    outdentList: () => {
+    outdentContent: () => {
+      if (applyFocusedCodeMirrorIndent(surfaceRef.current, 'outdent')) return true
       const context = getMutableRichEditor()
       if (!context || !context.realm.getValue(currentListType$)) return false
       const applied = context.editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined)
