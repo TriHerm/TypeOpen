@@ -32,6 +32,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Focus Mode, Typewriter Mode and Read-only Mode.
 - Optional Typora-style bracket/quote auto-pairing in the rich editor, including closer-skip and empty-pair Backspace behavior; Source Mode keeps CodeMirror's native pairing and continues bullet, ordered and task-list markers on Enter.
 - Rich Markdown typing shortcuts convert completed `==highlight==` and `~~strikethrough~~` markers without adding delimiter auto-pairing; MDXEditor continues to own the existing bold/italic/code/link transforms.
+- Explicit Markdown hard breaks survive rich/source round-trips; two-space hard breaks may canonicalize to the equivalent backslash form rather than silently becoming soft line breaks.
 - Fenced code blocks with line numbers, Tab/Shift-Tab and native Paragraph Indent/Outdent commands, wrapping, per-block language selection and a configurable default language for newly inserted fences.
 - Document outline with hierarchical or flat presentation, configurable H1–H6 depth, branch collapse/expand, Expand All / Collapse All and active-heading reveal.
 - Literal/regex find and replace with case/whole-word controls, recursive folder search, spell checking, word/character stats and optional autosave.

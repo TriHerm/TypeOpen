@@ -51,6 +51,7 @@ import { createHtmlCommentToken, decodeHtmlCommentsFromRichEditor, encodeHtmlCom
 import { typeOpenCommentPlugin } from './commentPlugin'
 import { typeOpenFootnotePlugin } from './footnotePlugin'
 import { typeOpenGitHubAlertPlugin } from './githubAlertPlugin'
+import { typeOpenHardBreakPlugin } from './hardBreakPlugin'
 import { typeOpenMathPlugin } from './mathPlugin'
 import { typeOpenReferenceLinkPlugin } from './referenceLinkPlugin'
 import { typeOpenTocPlugin } from './tocPlugin'
@@ -148,6 +149,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     typeOpenCommentPlugin(commentToken),
     typeOpenFootnotePlugin(),
     typeOpenGitHubAlertPlugin(),
+    typeOpenHardBreakPlugin(),
     typeOpenReferenceLinkPlugin(),
     typeOpenMathPlugin(),
     typeOpenTocPlugin(),

@@ -20,6 +20,7 @@ Replacement-workflow reliability and file navigation.
 - Hardened unsaved-buffer recovery lifecycle so the host cannot clear a valid startup snapshot before it is loaded, stale dirty snapshots are removed immediately once all open documents are clean, and the native loader rejects unsafe recovery-file indirection.
 - Added explicit **Restore Previous Session** for clean saved tabs. The host persists only already-authorized clean file intent plus captured file/parent identity; loading the manifest grants nothing, and restore revalidates identity before granting and reading each surviving tab. Folder authority is not restored.
 - Completed rich Markdown typing shortcuts for `==highlight==` and `~~strikethrough~~` using Lexical's public transformers; existing bold/italic/code/link shortcuts remain owned by MDXEditor and Source Mode stays literal.
+- Preserved Markdown hard-break semantics across rich/source round-trips. Backslash and two-space hard breaks now remain explicit breaks instead of degrading to soft newlines; rich normalization uses the canonical backslash marker.
 
 ## 0.1.6 — 2026-10-10
 
