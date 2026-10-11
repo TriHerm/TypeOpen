@@ -24,6 +24,36 @@ function realPath(value) {
   }
 }
 
+function pathSnapshot(value, { rejectSymbolicLink = false } = {}) {
+  const normalized = normalizePath(value)
+  if (!normalized) return null
+  try {
+    const link = fs.lstatSync(normalized)
+    if (rejectSymbolicLink && link.isSymbolicLink()) return null
+    const stat = fs.statSync(normalized)
+    return {
+      realPath: fs.realpathSync.native(normalized),
+      device: stat.dev,
+      inode: stat.ino,
+      fileType: stat.mode & fs.constants.S_IFMT,
+      size: stat.size,
+      mtimeMs: stat.mtimeMs
+    }
+  } catch {
+    return null
+  }
+}
+
+function samePathSnapshot(left, right) {
+  return Boolean(left && right &&
+    left.realPath === right.realPath &&
+    left.device === right.device &&
+    left.inode === right.inode &&
+    left.fileType === right.fileType &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs)
+}
+
 function createPathGrants() {
   const documents = new Map()
   let folder = null
@@ -34,12 +64,13 @@ function createPathGrants() {
   }
 
   return {
-    grantDocument(filePath) {
+    grantDocument(filePath, expectedSnapshot = null) {
       const normalized = normalizePath(filePath)
       if (!normalized) throw new Error('A valid document path is required.')
-      const grantedRealPath = realPath(normalized)
-      if (!grantedRealPath) throw new Error('The granted document path must exist.')
-      documents.set(normalized, grantedRealPath)
+      const snapshot = pathSnapshot(normalized, { rejectSymbolicLink: true })
+      if (!snapshot) throw new Error('The granted document path must be a safe local file or package.')
+      if (expectedSnapshot && !samePathSnapshot(snapshot, expectedSnapshot)) throw new Error('Document path changed while it was being authorized.')
+      documents.set(normalized, snapshot)
       return normalized
     },
     revokeDocument(filePath) {
@@ -60,11 +91,19 @@ function createPathGrants() {
     getFolder() {
       return activeFolder()?.path || null
     },
+    getFolderRealPath() {
+      return activeFolder()?.realPath || null
+    },
     isDocumentGranted(filePath) {
       const normalized = normalizePath(filePath)
       if (!normalized) return false
-      const grantedRealPath = documents.get(normalized)
-      return Boolean(grantedRealPath && realPath(normalized) === grantedRealPath)
+      const granted = documents.get(normalized)
+      const current = pathSnapshot(normalized, { rejectSymbolicLink: true })
+      return Boolean(granted && current &&
+        granted.realPath === current.realPath &&
+        granted.device === current.device &&
+        granted.inode === current.inode &&
+        granted.fileType === current.fileType)
     },
     canReadDocument(filePath) {
       const normalized = normalizePath(filePath)
@@ -90,4 +129,4 @@ function createPathGrants() {
   }
 }
 
-module.exports = { createPathGrants, isInsideOrEqual, normalizePath, realPath }
+module.exports = { createPathGrants, isInsideOrEqual, normalizePath, pathSnapshot, realPath, samePathSnapshot }

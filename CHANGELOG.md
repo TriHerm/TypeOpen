@@ -2,6 +2,15 @@
 
 All notable TypeOpen changes are recorded here.
 
+## Unreleased
+
+Replacement-workflow reliability and file navigation.
+
+- Added private recovery snapshots for dirty/imported buffers; interrupted work returns as pathless recovered documents instead of silently restoring filesystem authority.
+- Added native external-file change detection, conflict-gated autosave/Save, Reload from Disk, macOS-coordinated existing-file writes and revision-checked descriptor-bound replacement.
+- Added Whole Word and regular-expression controls to document find/replace and recursive folder search.
+- Added compact native file-tree actions for creating files/folders, renaming, refreshing, sorting and safely moving items to the user Trash; sensitive sidebar mutations remain disabled in the retained Electron migration fallback.
+
 ## 0.1.6 — 2026-10-10
 
 Theme consistency and code-editor contrast.

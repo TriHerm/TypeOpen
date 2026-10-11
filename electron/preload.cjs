@@ -7,6 +7,12 @@ const invokeChannels = new Set([
   'typeopen:read-file',
   'typeopen:list-folder',
   'typeopen:search-folder',
+  'typeopen:create-entry',
+  'typeopen:rename-entry',
+  'typeopen:trash-entry',
+  'typeopen:load-recovery',
+  'typeopen:save-recovery',
+  'typeopen:clear-recovery',
   'typeopen:save-file',
   'typeopen:save-file-as',
   'typeopen:duplicate-document',
@@ -24,7 +30,8 @@ const invokeChannels = new Set([
   'typeopen:clipboard-write',
   'typeopen:show-item',
   'typeopen:open-external',
-  'typeopen:confirm-discard'
+  'typeopen:confirm-discard',
+  'typeopen:confirm-external-reload'
 ])
 
 contextBridge.exposeInMainWorld('typeopen', {

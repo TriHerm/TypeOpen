@@ -21,13 +21,14 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Rich highlight, superscript and subscript formatting plus lossless inline/block HTML comments.
 - Inline and block TeX math rendered with KaTeX.
 - Mermaid, sequence and legacy flowchart previews inside fenced code blocks.
-- Folder file tree, article list and document outline.
+- Folder file tree, article list and document outline; the native runtime can create/rename/trash files and folders, refresh the tree, and sort by name or modification time.
 - Multi-document tabs with per-document dirty state, Save All, safe close prompts and next/previous tab navigation.
 - Native recent documents, reopen-closed history, Open Quickly, Reveal in File Tree and Open File Location.
 - Duplicate, Rename and Move To for saved local documents, including complete TextBundle package operations.
 - Editable TextBundle packages (`.textbundle`) with payload-preserving saves and bundle-local assets.
 - Focus Mode, Typewriter Mode and Read-only Mode.
-- Find/replace, spell checking, word/character stats and optional autosave.
+- Literal/regex find and replace with case/whole-word controls, recursive folder search, spell checking, word/character stats and optional autosave.
+- Private unsaved-buffer recovery plus native external-file conflict detection and **Reload from Disk**; recovered buffers reopen without filesystem write authority and require an explicit Save As.
 - Light, dark and system appearance settings plus explicitly selected local custom CSS themes with external-resource/executable CSS blocked.
 - Page Setup for Letter/A4/Legal/A5/Tabloid, portrait/landscape orientation and per-side margins used by PDF export and printing.
 - Compact right-click TypeOpen commands plus a searchable `/` command palette for common Markdown blocks.

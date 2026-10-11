@@ -2,6 +2,7 @@ import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AboutDialog } from '../src/components/AboutDialog'
+import { FileEntryDialog } from '../src/components/FileEntryDialog'
 import { Sidebar } from '../src/components/Sidebar'
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -77,7 +78,12 @@ describe('navigation accessibility', () => {
       revealRequest: 0,
       onOpenFile: () => undefined,
       onHeadingClick: () => undefined,
-      onRequestFocusEditor: () => editor.focus()
+      onRequestFocusEditor: () => editor.focus(),
+      folderPath: null,
+      onCreateEntry: () => undefined,
+      onRenameEntry: () => undefined,
+      onTrashEntry: () => undefined,
+      onRefreshFolder: () => undefined
     }
 
     await act(async () => {
@@ -96,6 +102,83 @@ describe('navigation accessibility', () => {
     expect(sidebar?.getAttribute('aria-hidden')).toBe('true')
     expect(document.activeElement).toBe(editor)
 
+    await act(async () => root.unmount())
+  })
+
+  it('exposes compact file-tree actions and renderer-side sorting without mutating the source tree', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    const onCreateEntry = vi.fn()
+    const onRefreshFolder = vi.fn()
+    const fileTree: TypeOpenTreeNode[] = [
+      { type: 'file', name: 'z.md', path: '/notes/z.md', modifiedAt: 1 },
+      { type: 'file', name: 'a.md', path: '/notes/a.md', modifiedAt: 2 }
+    ]
+
+    await act(async () => {
+      root.render(createElement(Sidebar, {
+        visible: true,
+        tab: 'files',
+        onTabChange: () => undefined,
+        outline: [],
+        activeOutlineSlug: null,
+        fileTree,
+        currentFilePath: null,
+        revealFilePath: null,
+        revealRequest: 0,
+        onOpenFile: () => undefined,
+        onHeadingClick: () => undefined,
+        onRequestFocusEditor: () => undefined,
+        folderPath: '/notes',
+        onCreateEntry,
+        onRenameEntry: () => undefined,
+        onTrashEntry: () => undefined,
+        onRefreshFolder
+      }))
+    })
+
+    const toolbarButtons = host.querySelectorAll<HTMLButtonElement>('.file-tree-toolbar button')
+    await act(async () => toolbarButtons[0].click())
+    await act(async () => toolbarButtons[2].click())
+    expect(onCreateEntry).toHaveBeenCalledWith('file', '/notes')
+    expect(onRefreshFolder).toHaveBeenCalledTimes(1)
+    expect(Array.from(host.querySelectorAll('.tree-row.file span:last-child')).map((element) => element.textContent)).toEqual(['a.md', 'z.md'])
+    expect(fileTree.map((node) => node.name)).toEqual(['z.md', 'a.md'])
+
+    await act(async () => root.unmount())
+  })
+
+  it('contains file-entry dialog focus and restores the previous control', async () => {
+    const previous = document.createElement('button')
+    previous.textContent = 'Previous'
+    document.body.append(previous)
+    previous.focus()
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    const onClose = vi.fn()
+
+    await act(async () => {
+      root.render(createElement(FileEntryDialog, { visible: true, mode: 'create-file', onClose, onSubmit: () => undefined }))
+      await Promise.resolve()
+    })
+    const input = host.querySelector<HTMLInputElement>('input')
+    const controls = Array.from(host.querySelectorAll<HTMLElement>('button, input')).filter((control) => !(control instanceof HTMLButtonElement && control.disabled))
+    expect(document.activeElement).toBe(input)
+
+    controls.at(-1)?.focus()
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+    expect(document.activeElement).toBe(controls[0])
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      root.render(createElement(FileEntryDialog, { visible: false, mode: 'create-file', onClose, onSubmit: () => undefined }))
+      await Promise.resolve()
+    })
+    await Promise.resolve()
+    expect(document.activeElement).toBe(previous)
     await act(async () => root.unmount())
   })
 })

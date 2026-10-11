@@ -152,6 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             return .terminateCancel
         case .alertSecondButtonReturn:
             quitAfterSave = false
+            bridge.clearRecoverySnapshot()
             forceClose = true
             terminating = true
             return .terminateNow
@@ -175,6 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             bridge.sendCommand("save-all-before-close")
             return false
         case .alertSecondButtonReturn:
+            bridge.clearRecoverySnapshot()
             forceClose = true
             return true
         default:
@@ -269,6 +271,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         fileMenu.addItem(commandItem("Save", key: "s", command: "save"))
         fileMenu.addItem(commandItem("Save As…", key: "s", modifiers: [.command, .shift], command: "save-as"))
         fileMenu.addItem(commandItem("Save All", command: "save-all"))
+        fileMenu.addItem(commandItem("Reload from Disk", command: "reload-from-disk"))
         fileMenu.addItem(commandItem("Revert to Saved", command: "revert"))
         fileMenu.addItem(.separator())
         fileMenu.addItem(commandItem("Duplicate", command: "duplicate-document"))

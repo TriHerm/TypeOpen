@@ -5,13 +5,14 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 const require = createRequire(import.meta.url)
-const { createPathGrants, isInsideOrEqual } = require('../electron/path-grants.cjs') as {
+const { createPathGrants, isInsideOrEqual, pathSnapshot } = require('../electron/path-grants.cjs') as {
   createPathGrants: () => {
-    grantDocument(filePath: string): string
+    grantDocument(filePath: string, expectedSnapshot?: unknown): string
     revokeDocument(filePath: string): void
     setFolder(folderPath: string): string | null
     clearFolder(): void
     getFolder(): string | null
+    getFolderRealPath(): string | null
     isDocumentGranted(filePath: string): boolean
     canReadDocument(filePath: string): boolean
     canWriteDocument(filePath: string): boolean
@@ -19,6 +20,7 @@ const { createPathGrants, isInsideOrEqual } = require('../electron/path-grants.c
     isCurrentFolder(folderPath: string): boolean
   }
   isInsideOrEqual: (targetPath: string, folderPath: string) => boolean
+  pathSnapshot: (filePath: string, options?: { rejectSymbolicLink?: boolean }) => unknown | null
 }
 
 const tempRoots: string[] = []
@@ -49,6 +51,7 @@ describe('main-process path grants', () => {
     grants.setFolder(root)
 
     expect(grants.getFolder()).toBe(root)
+    expect(grants.getFolderRealPath()).toBeTruthy()
     expect(grants.isCurrentFolder(root)).toBe(true)
     expect(grants.canListFolder(notes)).toBe(true)
     expect(grants.canReadDocument(document)).toBe(true)
@@ -117,6 +120,23 @@ describe('main-process path grants', () => {
     expect(grants.isDocumentGranted(document)).toBe(false)
     expect(grants.canReadDocument(document)).toBe(false)
     expect(grants.canWriteDocument(document)).toBe(false)
+  })
+
+  it('binds read promotion to the exact non-symlink snapshot that was read', async () => {
+    const root = await tempRoot()
+    const document = path.join(root, 'open.md')
+    const outside = path.join(root, 'outside.md')
+    await writeFile(document, '# Open')
+    await writeFile(outside, '# Outside')
+    const expected = pathSnapshot(document, { rejectSymbolicLink: true })
+    expect(expected).toBeTruthy()
+
+    await rm(document)
+    await symlink(outside, document)
+
+    const grants = createPathGrants()
+    expect(() => grants.grantDocument(document, expected)).toThrow(/safe|changed/i)
+    expect(grants.isDocumentGranted(document)).toBe(false)
   })
 
   it('revokes a folder grant if the selected folder path is replaced by a symlink', async () => {

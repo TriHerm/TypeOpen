@@ -1,6 +1,13 @@
 import Foundation
 import Darwin
 
+struct NativePathSnapshot: Equatable {
+    let realPath: String
+    let device: dev_t
+    let inode: ino_t
+    let fileType: mode_t
+}
+
 enum PathGrantError: LocalizedError {
     case invalidPath
     case missingPath
@@ -91,7 +98,7 @@ final class PathGrants {
     }
 
     @discardableResult
-    func grantDocument(_ filePath: String, expectedRealPath: String? = nil) throws -> String {
+    func grantDocument(_ filePath: String, expectedRealPath: String? = nil, expectedSnapshot: NativePathSnapshot? = nil) throws -> String {
         guard let normalized = normalizedPath(filePath) else { throw PathGrantError.invalidPath }
         let parentPath = URL(fileURLWithPath: normalized).deletingLastPathComponent().path
         guard let snapshot = realPath(normalized),
@@ -99,6 +106,13 @@ final class PathGrants {
               let parentRealPath = realPath(parentPath),
               let parentIdentity = identity(parentPath) else { throw PathGrantError.missingPath }
         if let expectedRealPath, snapshot != expectedRealPath { throw PathGrantError.changedPath }
+        if let expectedSnapshot,
+           (snapshot != expectedSnapshot.realPath ||
+            fileIdentity.device != expectedSnapshot.device ||
+            fileIdentity.inode != expectedSnapshot.inode ||
+            fileIdentity.fileType != expectedSnapshot.fileType) {
+            throw PathGrantError.changedPath
+        }
         documents[normalized] = DocumentGrant(
             realPath: snapshot,
             identity: fileIdentity,
@@ -154,6 +168,20 @@ final class PathGrants {
         if let granted = activeDocument(normalized), granted.realPath == targetRealPath { return targetRealPath }
         guard let active = activeFolder(), isInsideOrEqual(targetRealPath, active.realPath) else { return nil }
         return targetRealPath
+    }
+
+    func replacementReadableSnapshot(_ filePath: String) -> String? {
+        guard let normalized = normalizedPath(filePath), let granted = documents[normalized] else { return nil }
+        guard realPath(granted.parentPath) == granted.parentRealPath,
+              identity(granted.parentPath) == granted.parentIdentity else { return nil }
+        var linkStatus = stat()
+        guard lstat(normalized, &linkStatus) == 0,
+              (linkStatus.st_mode & mode_t(S_IFMT)) != mode_t(S_IFLNK),
+              let replacementIdentity = identity(normalized),
+              replacementIdentity.fileType == granted.identity.fileType,
+              let replacementRealPath = realPath(normalized),
+              isInsideOrEqual(replacementRealPath, granted.parentRealPath) else { return nil }
+        return replacementRealPath
     }
 
     func canReadDocument(_ filePath: String) -> Bool {

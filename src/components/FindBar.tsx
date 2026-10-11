@@ -7,11 +7,16 @@ interface FindBarProps {
   query: string
   replacement: string
   matchCase: boolean
+  wholeWord: boolean
+  regex: boolean
+  error: string | null
   matchCount: number
   currentMatch: number
   onQueryChange: (value: string) => void
   onReplacementChange: (value: string) => void
   onMatchCaseChange: (value: boolean) => void
+  onWholeWordChange: (value: boolean) => void
+  onRegexChange: (value: boolean) => void
   onNext: () => void
   onPrevious: () => void
   onReplaceOne: () => void
@@ -42,6 +47,8 @@ export function FindBar(props: FindBarProps) {
         />
         <span className="find-count">{props.matchCount ? `${props.currentMatch + 1} / ${props.matchCount}` : '0 / 0'}</span>
         <button className={`case-button ${props.matchCase ? 'active' : ''}`} onClick={() => props.onMatchCaseChange(!props.matchCase)} title="Match case">Aa</button>
+        <button className={`case-button ${props.wholeWord ? 'active' : ''}`} onClick={() => props.onWholeWordChange(!props.wholeWord)} title="Whole word">W</button>
+        <button className={`case-button ${props.regex ? 'active' : ''}`} onClick={() => props.onRegexChange(!props.regex)} title="Regular expression">.*</button>
         <button className="icon-button" onClick={props.onPrevious} title="Previous"><ChevronUp size={14} /></button>
         <button className="icon-button" onClick={props.onNext} title="Next"><ChevronDown size={14} /></button>
         <button className="icon-button" onClick={props.onClose} title="Close"><X size={14} /></button>
@@ -54,6 +61,7 @@ export function FindBar(props: FindBarProps) {
           <button onClick={props.onReplaceAll}>All</button>
         </div>
       )}
+      {props.error && <div className="find-error" role="status">{props.error}</div>}
     </div>
   )
 }

@@ -20,6 +20,8 @@ export function GlobalSearch({ visible, folderPath, onClose, onOpenResult }: Glo
   const requestIdRef = useRef(0)
   const [query, setQuery] = useState('')
   const [matchCase, setMatchCase] = useState(false)
+  const [wholeWord, setWholeWord] = useState(false)
+  const [regex, setRegex] = useState(false)
   const [results, setResults] = useState<GlobalSearchResult[]>([])
   const [truncated, setTruncated] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -46,7 +48,7 @@ export function GlobalSearch({ visible, folderPath, onClose, onOpenResult }: Glo
     setLoading(true)
     setError(null)
     const timer = window.setTimeout(() => {
-      void window.typeopen.invoke<{ results: GlobalSearchResult[]; truncated: boolean }>('typeopen:search-folder', { query, matchCase })
+      void window.typeopen.invoke<{ results: GlobalSearchResult[]; truncated: boolean }>('typeopen:search-folder', { query, matchCase, wholeWord, regex })
         .then((response) => {
           if (requestId !== requestIdRef.current) return
           setResults(response.results)
@@ -64,7 +66,7 @@ export function GlobalSearch({ visible, folderPath, onClose, onOpenResult }: Glo
     }, 160)
 
     return () => window.clearTimeout(timer)
-  }, [folderPath, matchCase, query, visible])
+  }, [folderPath, matchCase, query, regex, visible, wholeWord])
 
   if (!visible) return null
 
@@ -89,6 +91,8 @@ export function GlobalSearch({ visible, folderPath, onClose, onOpenResult }: Glo
             disabled={!folderPath}
           />
           <button className={`case-button ${matchCase ? 'active' : ''}`} onClick={() => setMatchCase((value) => !value)} title="Match case" disabled={!folderPath}>Aa</button>
+          <button className={`case-button ${wholeWord ? 'active' : ''}`} onClick={() => setWholeWord((value) => !value)} title="Whole word" disabled={!folderPath}>W</button>
+          <button className={`case-button ${regex ? 'active' : ''}`} onClick={() => setRegex((value) => !value)} title="Regular expression" disabled={!folderPath}>.*</button>
         </div>
         <div className="global-search-results">
           {!folderPath && <div className="global-search-empty">Open a folder to search across Markdown and text files.</div>}
