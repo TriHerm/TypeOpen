@@ -25,6 +25,7 @@ const {
   isSessionDocument
 } = require('./document-types.cjs')
 const { readAndGrantDocument } = require('./document-reader.cjs')
+const { readLocalImageFile } = require('./local-image-io.cjs')
 
 const execFileAsync = promisify(execFile)
 const DEV_SERVER = process.env.VITE_DEV_SERVER_URL
@@ -721,31 +722,52 @@ function documentBaseDirectory() {
   return pathGrants.getFolder()
 }
 
+function documentBaseReadContext() {
+  if (documentState.filePath) {
+    const documentToken = pathGrants.getDocumentBaseGrantToken(documentState.filePath)
+    if (documentToken) {
+      return {
+        baseDir: documentToken.basePath,
+        baseSnapshot: documentToken.baseSnapshot,
+        isAuthorityCurrent: () => pathGrants.isDocumentBaseGrantCurrent(documentToken)
+      }
+    }
+  }
+
+  const folderToken = pathGrants.getFolderGrantToken()
+  if (!folderToken) return null
+  return {
+    baseDir: folderToken.path,
+    baseSnapshot: folderToken,
+    isAuthorityCurrent: () => pathGrants.isFolderGrantCurrent(folderToken)
+  }
+}
+
 async function resolveImagePreview(source) {
   if (typeof source !== 'string' || !source) return source
   if (/^(?:data:|blob:|https?:)/i.test(source)) return source
-  const baseDir = documentBaseDirectory()
-  if (!baseDir) return BLOCKED_IMAGE_DATA_URL
+  const baseContext = documentBaseReadContext()
+  if (!baseContext) return BLOCKED_IMAGE_DATA_URL
+  const { baseDir } = baseContext
 
   try {
     let localPath = source
     if (/^file:/i.test(source)) localPath = fileURLToPath(source)
     else if (!path.isAbsolute(source)) localPath = path.resolve(baseDir, decodeURIComponent(source.split(/[?#]/, 1)[0]))
-    if (!isInsideOrEqual(localPath, baseDir) || !await isRealPathInsideOrEqual(localPath, baseDir)) return BLOCKED_IMAGE_DATA_URL
-    const ext = path.extname(localPath).toLowerCase()
-    const mime = IMAGE_MIME_TYPES[ext]
-    if (!mime) return BLOCKED_IMAGE_DATA_URL
-    const stat = await fsp.stat(localPath)
-    if (!stat.isFile() || stat.size > 64 * 1024 * 1024) return BLOCKED_IMAGE_DATA_URL
-    const data = await fsp.readFile(localPath)
-    return `data:${mime};base64,${data.toString('base64')}`
+    const image = await readLocalImageFile(localPath, baseDir, IMAGE_MIME_TYPES, {
+      expectedBaseSnapshot: baseContext.baseSnapshot,
+      isAuthorityCurrent: baseContext.isAuthorityCurrent
+    })
+    if (!image) return BLOCKED_IMAGE_DATA_URL
+    return `data:${image.mime};base64,${image.data.toString('base64')}`
   } catch {
     return BLOCKED_IMAGE_DATA_URL
   }
 }
 
 async function inlineLocalImages(html) {
-  const baseDir = documentBaseDirectory()
+  const baseContext = documentBaseReadContext()
+  const baseDir = baseContext?.baseDir ?? null
   const pattern = /(<img\b[^>]*?\bsrc=["'])([^"']+)(["'][^>]*>)/gi
   const replacements = []
   for (const match of html.matchAll(pattern)) {
@@ -760,22 +782,15 @@ async function inlineLocalImages(html) {
       let localPath = source
       if (/^file:/i.test(source)) localPath = fileURLToPath(source)
       else if (!path.isAbsolute(source)) localPath = path.resolve(baseDir, decodeURIComponent(source.split(/[?#]/, 1)[0]))
-      if (!isInsideOrEqual(localPath, baseDir) || !await isRealPathInsideOrEqual(localPath, baseDir)) {
+      const image = await readLocalImageFile(localPath, baseDir, IMAGE_MIME_TYPES, {
+        expectedBaseSnapshot: baseContext.baseSnapshot,
+        isAuthorityCurrent: baseContext.isAuthorityCurrent
+      })
+      if (!image) {
         replacements.push({ source, dataUrl: replacement })
         continue
       }
-      if (!fs.existsSync(localPath) || !fs.statSync(localPath).isFile()) {
-        replacements.push({ source, dataUrl: replacement })
-        continue
-      }
-      const ext = path.extname(localPath).toLowerCase()
-      const mime = IMAGE_MIME_TYPES[ext]
-      if (!mime) {
-        replacements.push({ source, dataUrl: replacement })
-        continue
-      }
-      const data = await fsp.readFile(localPath)
-      replacement = `data:${mime};base64,${data.toString('base64')}`
+      replacement = `data:${image.mime};base64,${image.data.toString('base64')}`
     } catch {
       // Block unresolved local sources rather than passing a file path to Chromium.
     }

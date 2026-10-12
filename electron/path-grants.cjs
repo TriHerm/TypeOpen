@@ -66,6 +66,16 @@ function createPathGrants() {
   const documents = new Map()
   let folder = null
 
+  const activeDocument = (filePath) => {
+    const normalized = normalizePath(filePath)
+    if (!normalized) return null
+    const granted = documents.get(normalized)
+    const current = pathSnapshot(normalized, { rejectSymbolicLink: true })
+    return granted && current && samePathIdentity(granted, current)
+      ? { normalized, granted }
+      : null
+  }
+
   const activeFolder = () => {
     if (!folder) return null
     const current = pathSnapshot(folder.path)
@@ -79,7 +89,10 @@ function createPathGrants() {
       const snapshot = pathSnapshot(normalized, { rejectSymbolicLink: true })
       if (!snapshot) throw new Error('The granted document path must be a safe local file or package.')
       if (expectedSnapshot && !samePathSnapshot(snapshot, expectedSnapshot)) throw new Error('Document path changed while it was being authorized.')
-      documents.set(normalized, snapshot)
+      const basePath = snapshot.fileType === fs.constants.S_IFDIR ? normalized : path.dirname(normalized)
+      const baseSnapshot = snapshot.fileType === fs.constants.S_IFDIR ? snapshot : pathSnapshot(basePath)
+      if (!baseSnapshot || baseSnapshot.fileType !== fs.constants.S_IFDIR) throw new Error('The document base directory must be a safe local directory.')
+      documents.set(normalized, { ...snapshot, basePath, baseSnapshot })
       return normalized
     },
     revokeDocument(filePath) {
@@ -118,15 +131,33 @@ function createPathGrants() {
       return Boolean(token && granted && token.path === granted.path && samePathIdentity(token, granted))
     },
     isDocumentGranted(filePath) {
-      const normalized = normalizePath(filePath)
-      if (!normalized) return false
-      const granted = documents.get(normalized)
-      const current = pathSnapshot(normalized, { rejectSymbolicLink: true })
-      return Boolean(granted && current &&
-        granted.realPath === current.realPath &&
-        granted.device === current.device &&
-        granted.inode === current.inode &&
-        granted.fileType === current.fileType)
+      return Boolean(activeDocument(filePath))
+    },
+    getDocumentBaseGrantToken(filePath) {
+      const active = activeDocument(filePath)
+      if (!active) return null
+      const { normalized, granted } = active
+      const currentBase = pathSnapshot(granted.basePath)
+      if (!samePathIdentity(granted.baseSnapshot, currentBase)) return null
+      return {
+        documentPath: normalized,
+        documentSnapshot: {
+          realPath: granted.realPath,
+          device: granted.device,
+          inode: granted.inode,
+          fileType: granted.fileType
+        },
+        basePath: granted.basePath,
+        baseSnapshot: { ...granted.baseSnapshot }
+      }
+    },
+    isDocumentBaseGrantCurrent(token) {
+      if (!token || typeof token.documentPath !== 'string' || typeof token.basePath !== 'string') return false
+      const active = activeDocument(token.documentPath)
+      if (!active) return false
+      const { granted } = active
+      if (!samePathIdentity(token.documentSnapshot, granted) || token.basePath !== granted.basePath || !samePathIdentity(token.baseSnapshot, granted.baseSnapshot)) return false
+      return samePathIdentity(token.baseSnapshot, pathSnapshot(token.basePath))
     },
     canReadDocument(filePath) {
       const normalized = normalizePath(filePath)
