@@ -40,7 +40,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Literal/regex find and replace with case/whole-word controls, recursive folder search, spell checking, word/character stats and optional autosave.
 - Native macOS **Edit → Substitutions** controls for smart quotes, smart dashes and text replacement, delegated to WKWebView rather than implemented as Markdown-rewriting transforms.
 - Private unsaved-buffer recovery plus native external-file conflict detection and **Reload from Disk**; recovered buffers reopen without filesystem write authority and require an explicit Save As, stale recovery is cleared immediately once all documents are clean, and clean saved tabs can be restored only through an explicit identity-revalidated session action.
-- Light, dark and system appearance settings plus explicitly selected local custom CSS themes with external-resource/executable CSS blocked.
+- Light, dark and system appearance settings plus independently selected local custom CSS for Light/Dark editor appearances; existing single custom themes migrate to both slots and System follows macOS appearance changes. External-resource/executable CSS remains blocked.
 - Built-in export appearance can match the editor or force Light/Dark for TypeOpen HTML, PDF, PNG and print rendering without injecting custom editor CSS.
 - Page Setup for Letter/A4/Legal/A5/Tabloid, portrait/landscape orientation, per-side margins and optional new-page starts for top-level H1 headings after the first. The heading rule is print-only, so PNG and onscreen HTML stay continuous.
 - Compact right-click TypeOpen commands plus a searchable `/` command palette for common Markdown blocks.

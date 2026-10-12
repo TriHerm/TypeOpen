@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { CODE_BLOCK_LANGUAGES, type CodeBlockLanguage } from '../lib/codeLanguages'
+import type { CustomThemeAppearance, CustomThemePreferences, EditorTheme } from '../lib/customThemePreferences'
 import type { ExportAppearance } from '../lib/exportPreferences'
 import type { OutlineMaxLevel, OutlineMode } from '../lib/outlinePreferences'
 
-export interface TypeOpenPreferences {
-  theme: 'system' | 'light' | 'dark'
-  customThemeName: string | null
-  customThemeCss: string
+export interface TypeOpenPreferences extends CustomThemePreferences {
+  theme: EditorTheme
   exportAppearance: ExportAppearance
   fontSize: number
   contentWidth: number
@@ -29,7 +28,7 @@ interface Props {
   preferences: TypeOpenPreferences
   onChange: (next: TypeOpenPreferences) => void
   onClose: () => void
-  onChooseCustomTheme: () => void
+  onChooseCustomTheme: (appearance: CustomThemeAppearance) => void
 }
 
 export function PreferencesDialog({ visible, preferences, onChange, onClose, onChooseCustomTheme }: Props) {
@@ -61,11 +60,17 @@ export function PreferencesDialog({ visible, preferences, onChange, onClose, onC
               <label>Editor font size <span>{preferences.fontSize}px</span><input type="range" min="13" max="24" value={preferences.fontSize} onChange={(event) => patch({ fontSize: Number(event.target.value) })} /></label>
               <label>Content width <span>{preferences.contentWidth}px</span><input type="range" min="560" max="1050" step="10" value={preferences.contentWidth} onChange={(event) => patch({ contentWidth: Number(event.target.value) })} /></label>
               <div className="custom-theme-row">
-                <button onClick={onChooseCustomTheme}>Choose Custom CSS…</button>
-                {preferences.customThemeName && <><span>{preferences.customThemeName}</span><button onClick={() => patch({ customThemeName: null, customThemeCss: '' })}>Remove</button></>}
+                <strong>Light custom theme</strong>
+                <button onClick={() => onChooseCustomTheme('light')}>Choose CSS…</button>
+                {preferences.customLightThemeName && <><span>{preferences.customLightThemeName}</span><button onClick={() => patch({ customLightThemeName: null, customLightThemeCss: '' })}>Remove</button></>}
+              </div>
+              <div className="custom-theme-row">
+                <strong>Dark custom theme</strong>
+                <button onClick={() => onChooseCustomTheme('dark')}>Choose CSS…</button>
+                {preferences.customDarkThemeName && <><span>{preferences.customDarkThemeName}</span><button onClick={() => patch({ customDarkThemeName: null, customDarkThemeCss: '' })}>Remove</button></>}
               </div>
               <p className="preference-note">Export appearance applies to TypeOpen's HTML, PDF, PNG and print rendering. Custom editor CSS is not injected into exports.</p>
-              <p className="preference-note">Custom CSS is loaded only from a file you explicitly choose. External-resource CSS is rejected.</p>
+              <p className="preference-note">Light and Dark custom CSS are loaded only from files you explicitly choose. System appearance switches between the two automatically. External-resource CSS is rejected.</p>
             </>}
             {tab === 'editor' && <>
               <label className="switch-row"><input type="checkbox" checked={preferences.spellCheck} onChange={(event) => patch({ spellCheck: event.target.checked })} /> Check spelling while typing</label>

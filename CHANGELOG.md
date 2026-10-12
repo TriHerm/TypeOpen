@@ -31,6 +31,7 @@ Replacement-workflow reliability and file navigation.
 - Added renderer-only file-library exclusion globs for Files, Articles and Open Quickly. Patterns are stored as preference text only, never as filesystem authority; the active/revealed document remains visible and Search in Folder continues to search the full authorized folder.
 - Added a built-in export appearance preference that can match the editor or force Light/Dark for TypeOpen HTML, PDF, PNG and print rendering while keeping custom editor CSS/templates out of the export pipeline.
 - Added an opt-in Page Setup rule that starts direct top-level H1 headings after the first on new printed pages. The rule is print-only for PDF/Print and browser-print of styled HTML; PNG and style-free HTML remain unchanged.
+- Split custom editor CSS into independent Light and Dark slots. Existing single custom themes migrate to both slots, System appearance switches between them live, and custom editor CSS remains excluded from export rendering.
 
 ## 0.1.6 — 2026-10-10
 
