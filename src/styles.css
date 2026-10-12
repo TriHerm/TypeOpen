@@ -427,6 +427,7 @@ button { -webkit-app-region: no-drag; }
 .preference-pane label:not(.switch-row) { display: grid; grid-template-columns: 150px minmax(120px,1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
 .preference-pane select { justify-self: start; min-width: 120px; }
 .preference-pane input[type="range"] { width: 100%; }
+.preference-pane textarea { width: 100%; min-height: 78px; resize: vertical; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: inherit; padding: 7px 8px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .switch-row { display: flex; align-items: center; gap: 9px; font-size: 13px; }
 .preference-note { color: var(--muted); font-size: 12px; line-height: 1.55; margin: 0; max-width: 430px; }
 .custom-theme-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

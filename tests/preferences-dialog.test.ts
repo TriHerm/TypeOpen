@@ -20,7 +20,8 @@ const preferences: TypeOpenPreferences = {
   statusBar: true,
   toolbar: false,
   sidebarDefault: true,
-  showHiddenFiles: false
+  showHiddenFiles: false,
+  fileTreeExcludeGlobs: ''
 }
 
 describe('Preferences dialog', () => {
@@ -51,6 +52,40 @@ describe('Preferences dialog', () => {
     await act(async () => hiddenToggle.click())
 
     expect(onChange).toHaveBeenCalledWith({ ...preferences, showHiddenFiles: true })
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it('exposes file-library exclusion globs without changing host authority', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const onChange = vi.fn()
+
+    await act(async () => {
+      root.render(createElement(PreferencesDialog, {
+        visible: true,
+        preferences,
+        onChange,
+        onClose: () => undefined,
+        onChooseCustomTheme: () => undefined
+      }))
+    })
+
+    const filesTab = Array.from(host.querySelectorAll<HTMLButtonElement>('.preferences-body nav button'))
+      .find((button) => button.textContent === 'Files')
+    if (!filesTab) throw new Error('Files preferences tab not found')
+    await act(async () => filesTab.click())
+
+    const textarea = host.querySelector<HTMLTextAreaElement>('textarea')
+    if (!textarea) throw new Error('Library exclusions textarea not found')
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+      valueSetter?.call(textarea, 'dist/**\n*.tmp')
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    expect(onChange).toHaveBeenCalledWith({ ...preferences, fileTreeExcludeGlobs: 'dist/**\n*.tmp' })
     await act(async () => root.unmount())
     host.remove()
   })

@@ -19,6 +19,7 @@ export interface TypeOpenPreferences {
   toolbar: boolean
   sidebarDefault: boolean
   showHiddenFiles: boolean
+  fileTreeExcludeGlobs: string
 }
 
 interface Props {
@@ -71,6 +72,8 @@ export function PreferencesDialog({ visible, preferences, onChange, onClose, onC
             {tab === 'files' && <>
               <label className="switch-row"><input type="checkbox" checked={preferences.autosave} onChange={(event) => patch({ autosave: event.target.checked })} /> Autosave open files after changes</label>
               <label className="switch-row"><input type="checkbox" checked={preferences.showHiddenFiles} onChange={(event) => patch({ showHiddenFiles: event.target.checked })} /> Show hidden files in folder tree</label>
+              <label>Library exclusions<textarea maxLength={4096} rows={4} value={preferences.fileTreeExcludeGlobs} placeholder={'dist/**\n*.tmp\n.coverage'} onChange={(event) => patch({ fileTreeExcludeGlobs: event.target.value })} /></label>
+              <p className="preference-note">One relative glob per line. Supports <code>*</code>, <code>?</code> and <code>**</code>. This only hides entries from Files, Articles and Open Quickly; Search in Folder still searches the authorized folder.</p>
               <p className="preference-note">Dropped and pasted image files are stored in an <code>assets/</code> directory next to the document when possible.</p>
             </>}
             {tab === 'markdown' && <>

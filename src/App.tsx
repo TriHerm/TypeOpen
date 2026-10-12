@@ -16,6 +16,7 @@ import { buildSessionIntent } from './lib/sessionRestore'
 import { codeFenceSnippet, effectiveCodeBlockLanguage, normalizeCodeBlockLanguage, type CodeBlockLanguage } from './lib/codeLanguages'
 import { normalizeOutlineMaxLevel, normalizeOutlineMode } from './lib/outlinePreferences'
 import { isExportFormat, rememberSuccessfulExport, type ExportFormat } from './lib/exportHistory'
+import { filterFileTreeByGlobs } from './lib/fileTreeFilters'
 
 const EMPTY_DOCUMENT = ''
 const PREF_KEY = 'typeopen.preferences.v1'
@@ -40,7 +41,8 @@ const DEFAULT_PREFS: TypeOpenPreferences = {
   statusBar: true,
   toolbar: false,
   sidebarDefault: true,
-  showHiddenFiles: false
+  showHiddenFiles: false,
+  fileTreeExcludeGlobs: ''
 }
 
 function loadPageSetup(): PageSetupState {
@@ -62,7 +64,8 @@ function loadPreferences(): TypeOpenPreferences {
       ...parsed,
       defaultCodeLanguage: normalizeCodeBlockLanguage(parsed?.defaultCodeLanguage),
       outlineMode: normalizeOutlineMode(parsed?.outlineMode),
-      outlineMaxLevel: normalizeOutlineMaxLevel(parsed?.outlineMaxLevel)
+      outlineMaxLevel: normalizeOutlineMaxLevel(parsed?.outlineMaxLevel),
+      fileTreeExcludeGlobs: typeof parsed?.fileTreeExcludeGlobs === 'string' ? parsed.fileTreeExcludeGlobs.slice(0, 4096) : ''
     }
   } catch {
     return DEFAULT_PREFS
@@ -187,6 +190,7 @@ export default function App() {
   const filePath = activeDocument?.filePath ?? null
   const dirty = activeDocument ? isDocumentDirty(activeDocument) : false
   const hasDirtyDocuments = documents.some(isDocumentDirty)
+  const visibleFileTree = useMemo(() => filterFileTreeByGlobs(fileTree, folderPath, preferences.fileTreeExcludeGlobs, [filePath, fileReveal?.path]), [filePath, fileReveal?.path, fileTree, folderPath, preferences.fileTreeExcludeGlobs])
   const outline = useMemo(() => extractOutline(markdown), [markdown])
   const stats = useMemo(() => getDocumentStats(markdown), [markdown])
   const searchResult = useMemo(() => searchText(markdown, findQuery, { matchCase, wholeWord, regex: regexSearch }), [findQuery, markdown, matchCase, regexSearch, wholeWord])
@@ -1146,7 +1150,7 @@ export default function App() {
         <button className="document-tab-add" title="New Tab" aria-label="New Tab" onClick={newDocument}><Plus size={14} /></button>
       </div>
       <div className="workspace">
-        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} outlineDocumentKey={activeDocumentId} activeOutlineSlug={activeOutlineSlug} outlineMode={preferences.outlineMode} outlineMaxLevel={preferences.outlineMaxLevel} fileTree={fileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onRevealEntry={(node) => void revealFolderEntryInFinder(node)} onHeadingClick={scrollToHeading} onRequestFocusEditor={() => editorRef.current?.focus()} folderPath={folderPath} onCreateEntry={beginCreateFolderEntry} onRenameEntry={beginRenameFolderEntry} onTrashEntry={(node) => void trashFolderEntry(node)} onRefreshFolder={() => { if (folderPath) void refreshFolder(folderPath) }} />
+        <Sidebar visible={sidebarVisible} tab={sidebarTab} onTabChange={setSidebarTab} outline={outline} outlineDocumentKey={activeDocumentId} activeOutlineSlug={activeOutlineSlug} outlineMode={preferences.outlineMode} outlineMaxLevel={preferences.outlineMaxLevel} fileTree={visibleFileTree} currentFilePath={filePath} revealFilePath={fileReveal?.path ?? null} revealRequest={fileReveal?.request ?? 0} onOpenFile={(path) => void loadFile(path)} onRevealEntry={(node) => void revealFolderEntryInFinder(node)} onHeadingClick={scrollToHeading} onRequestFocusEditor={() => editorRef.current?.focus()} folderPath={folderPath} onCreateEntry={beginCreateFolderEntry} onRenameEntry={beginRenameFolderEntry} onTrashEntry={(node) => void trashFolderEntry(node)} onRefreshFolder={() => { if (folderPath) void refreshFolder(folderPath) }} />
         <main className="document-workspace">
           <FindBar
             visible={findVisible}
@@ -1205,7 +1209,7 @@ export default function App() {
         </main>
       </div>
       <GlobalSearch visible={globalSearchVisible} folderPath={folderPath} onClose={() => setGlobalSearchVisible(false)} onOpenResult={openGlobalSearchResult} />
-      <QuickOpen visible={quickOpenVisible} folderPath={folderPath} fileTree={fileTree} onClose={() => setQuickOpenVisible(false)} onOpenFile={loadFile} />
+      <QuickOpen visible={quickOpenVisible} folderPath={folderPath} fileTree={visibleFileTree} onClose={() => setQuickOpenVisible(false)} onOpenFile={loadFile} />
       <AboutDialog
         visible={aboutVisible}
         version={__TYPEOPEN_VERSION__}
