@@ -42,7 +42,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Private unsaved-buffer recovery plus native external-file conflict detection and **Reload from Disk**; recovered buffers reopen without filesystem write authority and require an explicit Save As, stale recovery is cleared immediately once all documents are clean, and clean saved tabs can be restored only through an explicit identity-revalidated session action.
 - Light, dark and system appearance settings plus explicitly selected local custom CSS themes with external-resource/executable CSS blocked.
 - Built-in export appearance can match the editor or force Light/Dark for TypeOpen HTML, PDF, PNG and print rendering without injecting custom editor CSS.
-- Page Setup for Letter/A4/Legal/A5/Tabloid, portrait/landscape orientation and per-side margins used by PDF export and printing.
+- Page Setup for Letter/A4/Legal/A5/Tabloid, portrait/landscape orientation, per-side margins and optional new-page starts for top-level H1 headings after the first. The heading rule is print-only, so PNG and onscreen HTML stay continuous.
 - Compact right-click TypeOpen commands plus a searchable `/` command palette for common Markdown blocks.
 - PDF, HTML, style-free HTML and PNG export, plus **Export with Previous** to repeat the current document's last successful export format during the app session while still choosing the destination normally.
 - DOCX, ODT, RTF, EPUB, LaTeX and MediaWiki export when Pandoc is installed.
