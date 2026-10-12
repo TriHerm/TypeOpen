@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { mkdtemp, mkdir, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { link, mkdtemp, mkdir, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -16,6 +16,8 @@ const { createPathGrants, isInsideOrEqual, pathSnapshot } = require('../electron
     getFolderGrantToken(): unknown | null
     isFolderGrantCurrent(token: unknown): boolean
     isDocumentGranted(filePath: string): boolean
+    getDocumentBaseGrantToken(filePath: string): unknown | null
+    isDocumentBaseGrantCurrent(token: unknown): boolean
     canReadDocument(filePath: string): boolean
     canWriteDocument(filePath: string): boolean
     canListFolder(folderPath: string): boolean
@@ -122,6 +124,29 @@ describe('main-process path grants', () => {
     expect(grants.isDocumentGranted(document)).toBe(false)
     expect(grants.canReadDocument(document)).toBe(false)
     expect(grants.canWriteDocument(document)).toBe(false)
+  })
+
+  it('keeps document authority separate from a replaced parent-directory asset base', async () => {
+    const root = await tempRoot()
+    const workspace = path.join(root, 'workspace')
+    const displaced = path.join(root, 'workspace-old')
+    const document = path.join(workspace, 'open.md')
+    await mkdir(workspace)
+    await writeFile(document, '# Open')
+
+    const grants = createPathGrants()
+    grants.grantDocument(document)
+    const baseToken = grants.getDocumentBaseGrantToken(document)
+    expect(baseToken).toBeTruthy()
+
+    await rename(workspace, displaced)
+    await mkdir(workspace)
+    await link(path.join(displaced, 'open.md'), document)
+
+    expect(grants.isDocumentGranted(document)).toBe(true)
+    expect(grants.canWriteDocument(document)).toBe(true)
+    expect(grants.isDocumentBaseGrantCurrent(baseToken)).toBe(false)
+    expect(grants.getDocumentBaseGrantToken(document)).toBeNull()
   })
 
   it('binds read promotion to the exact non-symlink snapshot that was read', async () => {

@@ -15,7 +15,7 @@ const {
 } = require('./textbundle.cjs')
 const { copyDocumentPath, moveDocumentPath, pathExists } = require('./file-ops.cjs')
 const { MAX_THEME_CSS_BYTES, sanitizeThemeCss } = require('./theme-css.cjs')
-const { createPathGrants, isInsideOrEqual, pathSnapshot, samePathIdentity, samePathSnapshot } = require('./path-grants.cjs')
+const { createPathGrants, isInsideOrEqual, pathSnapshot, samePathSnapshot } = require('./path-grants.cjs')
 const {
   IMAGE_EXTENSIONS,
   IMAGE_MIME_TYPES,
@@ -723,15 +723,14 @@ function documentBaseDirectory() {
 }
 
 function documentBaseReadContext() {
-  if (documentState.filePath && pathGrants.isDocumentGranted(documentState.filePath)) {
-    const documentPath = documentState.filePath
-    const baseDir = isTextBundlePath(documentPath) ? documentPath : path.dirname(documentPath)
-    const baseSnapshot = pathSnapshot(baseDir)
-    if (!baseSnapshot || baseSnapshot.fileType !== fs.constants.S_IFDIR || !pathGrants.isDocumentGranted(documentPath)) return null
-    return {
-      baseDir,
-      baseSnapshot,
-      isAuthorityCurrent: () => pathGrants.isDocumentGranted(documentPath) && samePathIdentity(baseSnapshot, pathSnapshot(baseDir))
+  if (documentState.filePath) {
+    const documentToken = pathGrants.getDocumentBaseGrantToken(documentState.filePath)
+    if (documentToken) {
+      return {
+        baseDir: documentToken.basePath,
+        baseSnapshot: documentToken.baseSnapshot,
+        isAuthorityCurrent: () => pathGrants.isDocumentBaseGrantCurrent(documentToken)
+      }
     }
   }
 

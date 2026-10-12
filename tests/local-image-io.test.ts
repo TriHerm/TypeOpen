@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { mkdir, mkdtemp, open, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { link, mkdir, mkdtemp, open, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -7,9 +7,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 const require = createRequire(import.meta.url)
 const { createPathGrants, pathSnapshot } = require('../electron/path-grants.cjs') as {
   createPathGrants(): {
+    grantDocument(filePath: string): string
     setFolder(folderPath: string): string
     getFolderGrantToken(): (NonNullable<ReturnType<typeof pathSnapshot>> & { path: string }) | null
     isFolderGrantCurrent(token: NonNullable<ReturnType<ReturnType<typeof createPathGrants>['getFolderGrantToken']>>): boolean
+    getDocumentBaseGrantToken(filePath: string): { basePath: string; baseSnapshot: NonNullable<ReturnType<typeof pathSnapshot>> } | null
+    isDocumentBaseGrantCurrent(token: NonNullable<ReturnType<ReturnType<typeof createPathGrants>['getDocumentBaseGrantToken']>>): boolean
   }
   pathSnapshot(filePath: string, options?: { rejectSymbolicLink?: boolean }): {
     realPath: string
@@ -108,6 +111,31 @@ describe('bound local image reads', () => {
     await expect(readLocalImageFile(path.join(root, 'asset.png'), root, MIME, {
       expectedBaseSnapshot: token!,
       isAuthorityCurrent: () => grants.isFolderGrantCurrent(token!)
+    })).resolves.toBeNull()
+  })
+
+  it('rejects a replacement parent even when the exact granted document inode is hard-linked back', async () => {
+    const root = await workspace()
+    const originalParent = path.join(root, 'workspace')
+    const displacedParent = path.join(root, 'workspace-old')
+    const document = path.join(originalParent, 'open.md')
+    await mkdir(originalParent)
+    await writeFile(document, Buffer.from('# Open'))
+
+    const grants = createPathGrants()
+    grants.grantDocument(document)
+    const token = grants.getDocumentBaseGrantToken(document)
+    expect(token).not.toBeNull()
+
+    await rename(originalParent, displacedParent)
+    await mkdir(originalParent)
+    await link(path.join(displacedParent, 'open.md'), document)
+    await writeFile(path.join(originalParent, 'asset.png'), Buffer.from('replacement-image'))
+
+    expect(grants.isDocumentBaseGrantCurrent(token!)).toBe(false)
+    await expect(readLocalImageFile(path.join(originalParent, 'asset.png'), originalParent, MIME, {
+      expectedBaseSnapshot: token!.baseSnapshot,
+      isAuthorityCurrent: () => grants.isDocumentBaseGrantCurrent(token!)
     })).resolves.toBeNull()
   })
 })
