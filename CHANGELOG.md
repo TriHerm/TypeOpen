@@ -4,6 +4,10 @@ All notable TypeOpen changes are recorded here.
 
 ## Unreleased
 
+No unreleased changes yet.
+
+## 0.1.7 — 2026-10-11
+
 Replacement-workflow reliability and file navigation.
 
 - Added private recovery snapshots for dirty/imported buffers; interrupted work returns as pathless recovered documents instead of silently restoring filesystem authority.
