@@ -19,6 +19,7 @@ import { isExportFormat, rememberSuccessfulExport, type ExportFormat } from './l
 import { normalizeExportAppearance, resolveExportTheme } from './lib/exportPreferences'
 import { filterFileTreeByGlobs } from './lib/fileTreeFilters'
 import { normalizeCustomThemePreferences, observeSystemTheme, resolveCustomTheme, type CustomThemeAppearance } from './lib/customThemePreferences'
+import { loadFolderSessionHint, saveFolderSessionHint } from './lib/folderSessionHint'
 
 const EMPTY_DOCUMENT = ''
 const PREF_KEY = 'typeopen.preferences.v1'
@@ -334,11 +335,13 @@ export default function App() {
   }, [loadFile])
 
   const openFolder = useCallback(async () => {
-    const result = await window.typeopen.invoke<{ folderPath: string; tree: TypeOpenTreeNode[] } | null>('typeopen:open-folder')
+    const hintPath = loadFolderSessionHint(localStorage)
+    const result = await window.typeopen.invoke<{ folderPath: string; tree: TypeOpenTreeNode[] } | null>('typeopen:open-folder', hintPath ? { hintPath } : undefined)
     if (!result) return
     const treeResult = preferences.showHiddenFiles
       ? await window.typeopen.invoke<{ folderPath: string; tree: TypeOpenTreeNode[] }>('typeopen:list-folder', { folderPath: result.folderPath, showHiddenFiles: true })
       : result
+    saveFolderSessionHint(localStorage, result.folderPath)
     setFolderPath(result.folderPath)
     setFileTree(treeResult.tree)
     setSidebarVisible(true)

@@ -32,6 +32,7 @@ Replacement-workflow reliability and file navigation.
 - Added a built-in export appearance preference that can match the editor or force Light/Dark for TypeOpen HTML, PDF, PNG and print rendering while keeping custom editor CSS/templates out of the export pipeline.
 - Added an opt-in Page Setup rule that starts direct top-level H1 headings after the first on new printed pages. The rule is print-only for PDF/Print and browser-print of styled HTML; PNG and style-free HTML remain unchanged.
 - Split custom editor CSS into independent Light and Dark slots. Existing single custom themes migrate to both slots, System appearance switches between them live, and custom editor CSS remains excluded from export rendering.
+- Open Folder now remembers the last successfully selected folder only as the starting location for the next native folder chooser. The stored hint is never listed, opened, revalidated or promoted into filesystem authority until the user confirms a folder normally.
 
 ## 0.1.6 — 2026-10-10
 

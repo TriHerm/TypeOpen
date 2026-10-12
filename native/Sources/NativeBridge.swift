@@ -23,6 +23,18 @@ private let maxRecoveryBytes = 16 * 1024 * 1024
 private let maxRecoveryDocuments = 20
 private let maxSessionBytes = 512 * 1024
 private let maxSessionDocuments = 20
+private let maxFolderDialogHintLength = 4096
+
+func normalizedFolderDialogHint(_ payload: Any?) -> String? {
+    guard let options = payload as? [String: Any],
+          options.count == 1,
+          let hintPath = options["hintPath"] as? String,
+          !hintPath.isEmpty,
+          hintPath.count <= maxFolderDialogHintLength,
+          !hintPath.contains("\0"),
+          (hintPath as NSString).isAbsolutePath else { return nil }
+    return hintPath
+}
 
 func isEditableDocumentPath(_ filePath: String) -> Bool {
     let ext = URL(fileURLWithPath: filePath).pathExtension.lowercased()
@@ -778,7 +790,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     private func invokeSync(channel: String, payload: Any?) throws -> Any? {
         switch channel {
         case "typeopen:open-file": return try chooseOpenFile()
-        case "typeopen:open-folder": return try chooseOpenFolder()
+        case "typeopen:open-folder": return try chooseOpenFolder(payload: payload)
         case "typeopen:choose-theme-css": return try chooseThemeCSS()
         case "typeopen:read-file": return try readGrantedDocument(requireString(payload, "Document path is required."))
         case "typeopen:list-folder":
@@ -891,12 +903,15 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         return ["filePath": path, "imported": pandocImportExtensions.contains(url.pathExtension.lowercased())]
     }
 
-    private func chooseOpenFolder() throws -> Any? {
+    private func chooseOpenFolder(payload: Any?) throws -> Any? {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.canCreateDirectories = false
         panel.allowsMultipleSelection = false
+        if let hintPath = normalizedFolderDialogHint(payload) {
+            panel.directoryURL = URL(fileURLWithPath: hintPath, isDirectory: true)
+        }
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
         let folderPath = try grants.setFolder(url.path)
         return ["folderPath": folderPath, "tree": try listDirectory(folderPath)]
