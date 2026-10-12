@@ -1,11 +1,16 @@
 import { createRequire } from 'node:module'
-import { mkdtemp, open, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, open, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 const require = createRequire(import.meta.url)
-const { pathSnapshot } = require('../electron/path-grants.cjs') as {
+const { createPathGrants, pathSnapshot } = require('../electron/path-grants.cjs') as {
+  createPathGrants(): {
+    setFolder(folderPath: string): string
+    getFolderGrantToken(): (NonNullable<ReturnType<typeof pathSnapshot>> & { path: string }) | null
+    isFolderGrantCurrent(token: NonNullable<ReturnType<ReturnType<typeof createPathGrants>['getFolderGrantToken']>>): boolean
+  }
   pathSnapshot(filePath: string, options?: { rejectSymbolicLink?: boolean }): {
     realPath: string
     device: number
@@ -16,7 +21,11 @@ const { pathSnapshot } = require('../electron/path-grants.cjs') as {
   } | null
 }
 const { readLocalImageFile, readOpenedLocalImage } = require('../electron/local-image-io.cjs') as {
-  readLocalImageFile(filePath: string, baseDir: string, mimeByExtension: Record<string, string>, maxBytes?: number): Promise<{ mime: string; data: Buffer } | null>
+  readLocalImageFile(filePath: string, baseDir: string, mimeByExtension: Record<string, string>, options?: {
+    maxBytes?: number
+    expectedBaseSnapshot?: NonNullable<ReturnType<typeof pathSnapshot>>
+    isAuthorityCurrent?: () => boolean
+  }): Promise<{ mime: string; data: Buffer } | null>
   readOpenedLocalImage(handle: Awaited<ReturnType<typeof open>>, filePath: string, baseDir: string, baseSnapshot: NonNullable<ReturnType<typeof pathSnapshot>>, maxBytes?: number): Promise<Buffer | null>
 }
 
@@ -79,6 +88,26 @@ describe('bound local image reads', () => {
     const image = path.join(root, 'asset.png')
     await writeFile(image, Buffer.from('12345'))
 
-    await expect(readLocalImageFile(image, root, MIME, 4)).resolves.toBeNull()
+    await expect(readLocalImageFile(image, root, MIME, { maxBytes: 4 })).resolves.toBeNull()
+  })
+
+  it('rejects a stale folder path after the authorized folder identity is replaced', async () => {
+    const root = await workspace()
+    const displaced = `${root}-old`
+    tempRoots.push(displaced)
+    const grants = createPathGrants()
+    grants.setFolder(root)
+    const token = grants.getFolderGrantToken()
+    expect(token).not.toBeNull()
+
+    await rename(root, displaced)
+    await mkdir(root)
+    await writeFile(path.join(root, 'asset.png'), Buffer.from('replacement'))
+
+    expect(grants.isFolderGrantCurrent(token!)).toBe(false)
+    await expect(readLocalImageFile(path.join(root, 'asset.png'), root, MIME, {
+      expectedBaseSnapshot: token!,
+      isAuthorityCurrent: () => grants.isFolderGrantCurrent(token!)
+    })).resolves.toBeNull()
   })
 })

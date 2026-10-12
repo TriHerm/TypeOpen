@@ -15,7 +15,7 @@ const {
 } = require('./textbundle.cjs')
 const { copyDocumentPath, moveDocumentPath, pathExists } = require('./file-ops.cjs')
 const { MAX_THEME_CSS_BYTES, sanitizeThemeCss } = require('./theme-css.cjs')
-const { createPathGrants, isInsideOrEqual, pathSnapshot, samePathSnapshot } = require('./path-grants.cjs')
+const { createPathGrants, isInsideOrEqual, pathSnapshot, samePathIdentity, samePathSnapshot } = require('./path-grants.cjs')
 const {
   IMAGE_EXTENSIONS,
   IMAGE_MIME_TYPES,
@@ -722,17 +722,43 @@ function documentBaseDirectory() {
   return pathGrants.getFolder()
 }
 
+function documentBaseReadContext() {
+  if (documentState.filePath && pathGrants.isDocumentGranted(documentState.filePath)) {
+    const documentPath = documentState.filePath
+    const baseDir = isTextBundlePath(documentPath) ? documentPath : path.dirname(documentPath)
+    const baseSnapshot = pathSnapshot(baseDir)
+    if (!baseSnapshot || baseSnapshot.fileType !== fs.constants.S_IFDIR || !pathGrants.isDocumentGranted(documentPath)) return null
+    return {
+      baseDir,
+      baseSnapshot,
+      isAuthorityCurrent: () => pathGrants.isDocumentGranted(documentPath) && samePathIdentity(baseSnapshot, pathSnapshot(baseDir))
+    }
+  }
+
+  const folderToken = pathGrants.getFolderGrantToken()
+  if (!folderToken) return null
+  return {
+    baseDir: folderToken.path,
+    baseSnapshot: folderToken,
+    isAuthorityCurrent: () => pathGrants.isFolderGrantCurrent(folderToken)
+  }
+}
+
 async function resolveImagePreview(source) {
   if (typeof source !== 'string' || !source) return source
   if (/^(?:data:|blob:|https?:)/i.test(source)) return source
-  const baseDir = documentBaseDirectory()
-  if (!baseDir) return BLOCKED_IMAGE_DATA_URL
+  const baseContext = documentBaseReadContext()
+  if (!baseContext) return BLOCKED_IMAGE_DATA_URL
+  const { baseDir } = baseContext
 
   try {
     let localPath = source
     if (/^file:/i.test(source)) localPath = fileURLToPath(source)
     else if (!path.isAbsolute(source)) localPath = path.resolve(baseDir, decodeURIComponent(source.split(/[?#]/, 1)[0]))
-    const image = await readLocalImageFile(localPath, baseDir, IMAGE_MIME_TYPES)
+    const image = await readLocalImageFile(localPath, baseDir, IMAGE_MIME_TYPES, {
+      expectedBaseSnapshot: baseContext.baseSnapshot,
+      isAuthorityCurrent: baseContext.isAuthorityCurrent
+    })
     if (!image) return BLOCKED_IMAGE_DATA_URL
     return `data:${image.mime};base64,${image.data.toString('base64')}`
   } catch {
@@ -741,7 +767,8 @@ async function resolveImagePreview(source) {
 }
 
 async function inlineLocalImages(html) {
-  const baseDir = documentBaseDirectory()
+  const baseContext = documentBaseReadContext()
+  const baseDir = baseContext?.baseDir ?? null
   const pattern = /(<img\b[^>]*?\bsrc=["'])([^"']+)(["'][^>]*>)/gi
   const replacements = []
   for (const match of html.matchAll(pattern)) {
@@ -756,7 +783,10 @@ async function inlineLocalImages(html) {
       let localPath = source
       if (/^file:/i.test(source)) localPath = fileURLToPath(source)
       else if (!path.isAbsolute(source)) localPath = path.resolve(baseDir, decodeURIComponent(source.split(/[?#]/, 1)[0]))
-      const image = await readLocalImageFile(localPath, baseDir, IMAGE_MIME_TYPES)
+      const image = await readLocalImageFile(localPath, baseDir, IMAGE_MIME_TYPES, {
+        expectedBaseSnapshot: baseContext.baseSnapshot,
+        isAuthorityCurrent: baseContext.isAuthorityCurrent
+      })
       if (!image) {
         replacements.push({ source, dataUrl: replacement })
         continue

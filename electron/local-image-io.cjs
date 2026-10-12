@@ -30,7 +30,8 @@ function sameOpenedSnapshot(left, right) {
     left.mtimeMs === right.mtimeMs)
 }
 
-async function readOpenedLocalImage(handle, filePath, baseDir, baseSnapshot, maxBytes = DEFAULT_MAX_IMAGE_BYTES) {
+async function readOpenedLocalImage(handle, filePath, baseDir, baseSnapshot, maxBytes = DEFAULT_MAX_IMAGE_BYTES, isAuthorityCurrent = () => true) {
+  if (!isAuthorityCurrent()) return null
   const openedBefore = await handle.stat()
   if (!openedBefore.isFile() || openedBefore.size > maxBytes) return null
 
@@ -39,7 +40,7 @@ async function readOpenedLocalImage(handle, filePath, baseDir, baseSnapshot, max
   if (!targetSnapshot || !isInsideOrEqual(targetSnapshot.realPath, baseSnapshot.realPath)) return null
 
   const currentBase = pathSnapshot(baseDir)
-  if (!samePathIdentity(baseSnapshot, currentBase)) return null
+  if (!samePathIdentity(baseSnapshot, currentBase) || !isAuthorityCurrent()) return null
 
   const data = Buffer.allocUnsafe(openedBefore.size)
   let offset = 0
@@ -52,26 +53,31 @@ async function readOpenedLocalImage(handle, filePath, baseDir, baseSnapshot, max
   if (!sameOpenedSnapshot(openedBefore, openedAfter)) return null
 
   const finalBase = pathSnapshot(baseDir)
-  if (!samePathIdentity(baseSnapshot, finalBase)) return null
+  if (!samePathIdentity(baseSnapshot, finalBase) || !isAuthorityCurrent()) return null
   return data
 }
 
-async function readLocalImageFile(filePath, baseDir, mimeByExtension, maxBytes = DEFAULT_MAX_IMAGE_BYTES) {
+async function readLocalImageFile(filePath, baseDir, mimeByExtension, options = {}) {
   if (typeof filePath !== 'string' || typeof baseDir !== 'string') return null
   if (!isInsideOrEqual(filePath, baseDir)) return null
+
+  const maxBytes = options.maxBytes ?? DEFAULT_MAX_IMAGE_BYTES
+  const isAuthorityCurrent = typeof options.isAuthorityCurrent === 'function' ? options.isAuthorityCurrent : () => true
 
   const ext = path.extname(filePath).toLowerCase()
   const mime = mimeByExtension[ext]
   if (!mime) return null
 
-  const baseSnapshot = pathSnapshot(baseDir)
+  const currentBase = pathSnapshot(baseDir)
+  const baseSnapshot = options.expectedBaseSnapshot ?? currentBase
   if (!baseSnapshot || baseSnapshot.fileType !== fs.constants.S_IFDIR) return null
+  if (!samePathIdentity(baseSnapshot, currentBase) || !isAuthorityCurrent()) return null
 
   let handle
   try {
     const noFollow = fs.constants.O_NOFOLLOW || 0
     handle = await fsp.open(filePath, fs.constants.O_RDONLY | noFollow)
-    const data = await readOpenedLocalImage(handle, filePath, baseDir, baseSnapshot, maxBytes)
+    const data = await readOpenedLocalImage(handle, filePath, baseDir, baseSnapshot, maxBytes, isAuthorityCurrent)
     return data ? { mime, data } : null
   } catch {
     return null
