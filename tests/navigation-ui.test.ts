@@ -220,6 +220,68 @@ describe('navigation accessibility', () => {
     await act(async () => root.unmount())
   })
 
+  it('clears file-tree selection when filtering removes the selected node', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    const onRevealEntry = vi.fn()
+    const onRenameEntry = vi.fn()
+    const onTrashEntry = vi.fn()
+    const fullTree: TypeOpenTreeNode[] = [
+      { type: 'directory', name: 'dist', path: '/notes/dist', children: [{ type: 'file', name: 'generated.md', path: '/notes/dist/generated.md' }] },
+      { type: 'file', name: 'note.md', path: '/notes/note.md' }
+    ]
+    const baseProps = {
+      visible: true,
+      tab: 'files' as const,
+      onTabChange: () => undefined,
+      outline: [],
+      outlineDocumentKey: 'doc-1',
+      activeOutlineSlug: null,
+      currentFilePath: null,
+      revealFilePath: null,
+      revealRequest: 0,
+      onOpenFile: () => undefined,
+      onRevealEntry,
+      onHeadingClick: () => undefined,
+      onRequestFocusEditor: () => undefined,
+      folderPath: '/notes',
+      onCreateEntry: () => undefined,
+      onRenameEntry,
+      onTrashEntry,
+      onRefreshFolder: () => undefined
+    }
+
+    await act(async () => {
+      root.render(createElement(Sidebar, { ...baseProps, fileTree: fullTree }))
+    })
+    await act(async () => host.querySelector<HTMLButtonElement>('.tree-node.directory > .tree-row[title="/notes/dist"]')?.click())
+
+    const revealButton = host.querySelector<HTMLButtonElement>('button[title="Reveal selected in Finder"]')
+    const renameButton = host.querySelector<HTMLButtonElement>('button[title="Rename selected"]')
+    const trashButton = host.querySelector<HTMLButtonElement>('button[title="Move selected to Trash"]')
+    expect(revealButton?.disabled).toBe(false)
+    expect(renameButton?.disabled).toBe(false)
+    expect(trashButton?.disabled).toBe(false)
+
+    await act(async () => {
+      root.render(createElement(Sidebar, { ...baseProps, fileTree: [fullTree[1]] }))
+    })
+
+    expect(host.querySelector('.tree-node.directory > .tree-row[title="/notes/dist"]')).toBeNull()
+    expect(revealButton?.disabled).toBe(true)
+    expect(renameButton?.disabled).toBe(true)
+    expect(trashButton?.disabled).toBe(true)
+    await act(async () => revealButton?.click())
+    await act(async () => renameButton?.click())
+    await act(async () => trashButton?.click())
+    expect(onRevealEntry).not.toHaveBeenCalled()
+    expect(onRenameEntry).not.toHaveBeenCalled()
+    expect(onTrashEntry).not.toHaveBeenCalled()
+
+    await act(async () => root.unmount())
+  })
+
   it('collapses outline branches and reopens the active heading path', async () => {
     const host = document.createElement('div')
     document.body.append(host)

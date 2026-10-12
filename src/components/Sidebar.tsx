@@ -172,6 +172,11 @@ export function Sidebar({ visible, tab, onTabChange, outline, outlineDocumentKey
   }, [outlineDocumentKey])
 
   useEffect(() => {
+    if (!selectedNode || fileTree.some((node) => containsPath(node, selectedNode.path))) return
+    setSelectedNode(null)
+  }, [fileTree, selectedNode])
+
+  useEffect(() => {
     if (outlineMode !== 'hierarchical' || !effectiveActiveOutlineSlug) return
     const ancestors = outlineAncestorSlugs(outlineTree, effectiveActiveOutlineSlug)
     if (!ancestors.length) return
