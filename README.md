@@ -26,6 +26,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Folder file tree, article list and document outline; the native runtime can create/rename/trash files and folders, refresh the tree, sort by name, modification time or creation time, optionally show hidden files, and reveal selected assets in Finder without promoting images into editable-document authority.
 - Multi-document tabs with per-document dirty state, Save All, safe close prompts and next/previous tab navigation.
 - Native recent documents, reopen-closed history, Open Quickly, Reveal in File Tree and Open File Location.
+- Files, Articles and Open Quickly support optional relative exclusion globs for hiding generated or noisy entries without changing folder authority or Search in Folder.
 - Explicit **Restore Previous Session** for clean saved tabs; missing, replaced or symlinked paths are skipped, and no folder grant is restored implicitly.
 - Duplicate, Rename and Move To for saved local documents, including complete TextBundle package operations.
 - Editable TextBundle packages (`.textbundle`) with payload-preserving saves and bundle-local assets.
