@@ -9,6 +9,7 @@ const preferences: TypeOpenPreferences = {
   theme: 'system',
   customThemeName: null,
   customThemeCss: '',
+  exportAppearance: 'editor',
   fontSize: 17,
   contentWidth: 780,
   spellCheck: true,
@@ -86,6 +87,40 @@ describe('Preferences dialog', () => {
     })
 
     expect(onChange).toHaveBeenCalledWith({ ...preferences, fileTreeExcludeGlobs: 'dist/**\n*.tmp' })
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it('exposes a built-in export appearance preference', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const onChange = vi.fn()
+
+    await act(async () => {
+      root.render(createElement(PreferencesDialog, {
+        visible: true,
+        preferences,
+        onChange,
+        onClose: () => undefined,
+        onChooseCustomTheme: () => undefined
+      }))
+    })
+
+    const appearanceTab = Array.from(host.querySelectorAll<HTMLButtonElement>('.preferences-body nav button'))
+      .find((button) => button.textContent === 'Appearance')
+    if (!appearanceTab) throw new Error('Appearance preferences tab not found')
+    await act(async () => appearanceTab.click())
+
+    const select = Array.from(host.querySelectorAll<HTMLSelectElement>('select'))
+      .find((candidate) => candidate.parentElement?.textContent?.includes('Export appearance'))
+    if (!select) throw new Error('Export appearance selector not found')
+    await act(async () => {
+      select.value = 'dark'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    expect(onChange).toHaveBeenCalledWith({ ...preferences, exportAppearance: 'dark' })
     await act(async () => root.unmount())
     host.remove()
   })

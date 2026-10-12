@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { CODE_BLOCK_LANGUAGES, type CodeBlockLanguage } from '../lib/codeLanguages'
+import type { ExportAppearance } from '../lib/exportPreferences'
 import type { OutlineMaxLevel, OutlineMode } from '../lib/outlinePreferences'
 
 export interface TypeOpenPreferences {
   theme: 'system' | 'light' | 'dark'
   customThemeName: string | null
   customThemeCss: string
+  exportAppearance: ExportAppearance
   fontSize: number
   contentWidth: number
   spellCheck: boolean
@@ -55,12 +57,14 @@ export function PreferencesDialog({ visible, preferences, onChange, onClose, onC
             </>}
             {tab === 'appearance' && <>
               <label>Theme<select value={preferences.theme} onChange={(event) => patch({ theme: event.target.value as TypeOpenPreferences['theme'] })}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+              <label>Export appearance<select value={preferences.exportAppearance} onChange={(event) => patch({ exportAppearance: event.target.value as ExportAppearance })}><option value="editor">Match editor</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
               <label>Editor font size <span>{preferences.fontSize}px</span><input type="range" min="13" max="24" value={preferences.fontSize} onChange={(event) => patch({ fontSize: Number(event.target.value) })} /></label>
               <label>Content width <span>{preferences.contentWidth}px</span><input type="range" min="560" max="1050" step="10" value={preferences.contentWidth} onChange={(event) => patch({ contentWidth: Number(event.target.value) })} /></label>
               <div className="custom-theme-row">
                 <button onClick={onChooseCustomTheme}>Choose Custom CSS…</button>
                 {preferences.customThemeName && <><span>{preferences.customThemeName}</span><button onClick={() => patch({ customThemeName: null, customThemeCss: '' })}>Remove</button></>}
               </div>
+              <p className="preference-note">Export appearance applies to TypeOpen's HTML, PDF, PNG and print rendering. Custom editor CSS is not injected into exports.</p>
               <p className="preference-note">Custom CSS is loaded only from a file you explicitly choose. External-resource CSS is rejected.</p>
             </>}
             {tab === 'editor' && <>

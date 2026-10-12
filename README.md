@@ -41,6 +41,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Native macOS **Edit → Substitutions** controls for smart quotes, smart dashes and text replacement, delegated to WKWebView rather than implemented as Markdown-rewriting transforms.
 - Private unsaved-buffer recovery plus native external-file conflict detection and **Reload from Disk**; recovered buffers reopen without filesystem write authority and require an explicit Save As, stale recovery is cleared immediately once all documents are clean, and clean saved tabs can be restored only through an explicit identity-revalidated session action.
 - Light, dark and system appearance settings plus explicitly selected local custom CSS themes with external-resource/executable CSS blocked.
+- Built-in export appearance can match the editor or force Light/Dark for TypeOpen HTML, PDF, PNG and print rendering without injecting custom editor CSS.
 - Page Setup for Letter/A4/Legal/A5/Tabloid, portrait/landscape orientation and per-side margins used by PDF export and printing.
 - Compact right-click TypeOpen commands plus a searchable `/` command palette for common Markdown blocks.
 - PDF, HTML, style-free HTML and PNG export, plus **Export with Previous** to repeat the current document's last successful export format during the app session while still choosing the destination normally.

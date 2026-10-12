@@ -16,6 +16,7 @@ import { buildSessionIntent } from './lib/sessionRestore'
 import { codeFenceSnippet, effectiveCodeBlockLanguage, normalizeCodeBlockLanguage, type CodeBlockLanguage } from './lib/codeLanguages'
 import { normalizeOutlineMaxLevel, normalizeOutlineMode } from './lib/outlinePreferences'
 import { isExportFormat, rememberSuccessfulExport, type ExportFormat } from './lib/exportHistory'
+import { normalizeExportAppearance, resolveExportTheme } from './lib/exportPreferences'
 import { filterFileTreeByGlobs } from './lib/fileTreeFilters'
 
 const EMPTY_DOCUMENT = ''
@@ -30,6 +31,7 @@ const DEFAULT_PREFS: TypeOpenPreferences = {
   theme: 'system',
   customThemeName: null,
   customThemeCss: '',
+  exportAppearance: 'editor',
   fontSize: 17,
   contentWidth: 780,
   spellCheck: true,
@@ -62,6 +64,7 @@ function loadPreferences(): TypeOpenPreferences {
     return {
       ...DEFAULT_PREFS,
       ...parsed,
+      exportAppearance: normalizeExportAppearance(parsed?.exportAppearance),
       defaultCodeLanguage: normalizeCodeBlockLanguage(parsed?.defaultCodeLanguage),
       outlineMode: normalizeOutlineMode(parsed?.outlineMode),
       outlineMaxLevel: normalizeOutlineMaxLevel(parsed?.outlineMaxLevel),
@@ -704,13 +707,18 @@ export default function App() {
 
   const createOutputHtml = useCallback(async () => {
     const latest = editorRef.current?.getMarkdown() ?? markdown
+    const exportTheme = resolveExportTheme(
+      preferences.exportAppearance,
+      preferences.theme,
+      window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
+    )
     return createExportHtml(latest, {
       title: filePath ? extensionless(filePath) : documentTitle(latest),
       includeOutline: false,
-      theme: preferences.theme === 'dark' ? 'dark' : 'light',
+      theme: exportTheme,
       maxWidth: preferences.contentWidth
     })
-  }, [filePath, markdown, preferences.contentWidth, preferences.theme])
+  }, [filePath, markdown, preferences.contentWidth, preferences.exportAppearance, preferences.theme])
 
   const exportDocument = useCallback(async (format: ExportFormat) => {
     const documentId = activeDocumentIdRef.current
