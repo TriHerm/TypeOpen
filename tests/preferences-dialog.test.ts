@@ -7,8 +7,10 @@ import { PreferencesDialog, type TypeOpenPreferences } from '../src/components/P
 
 const preferences: TypeOpenPreferences = {
   theme: 'system',
-  customThemeName: null,
-  customThemeCss: '',
+  customLightThemeName: null,
+  customLightThemeCss: '',
+  customDarkThemeName: null,
+  customDarkThemeCss: '',
   exportAppearance: 'editor',
   fontSize: 17,
   contentWidth: 780,
@@ -121,6 +123,54 @@ describe('Preferences dialog', () => {
     })
 
     expect(onChange).toHaveBeenCalledWith({ ...preferences, exportAppearance: 'dark' })
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it('chooses and removes custom Light/Dark themes independently', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const onChange = vi.fn()
+    const onChooseCustomTheme = vi.fn()
+    const configured: TypeOpenPreferences = {
+      ...preferences,
+      customLightThemeName: 'paper.css',
+      customLightThemeCss: ':root{--bg:#fff}',
+      customDarkThemeName: 'ink.css',
+      customDarkThemeCss: ':root{--bg:#111}'
+    }
+
+    await act(async () => {
+      root.render(createElement(PreferencesDialog, {
+        visible: true,
+        preferences: configured,
+        onChange,
+        onClose: () => undefined,
+        onChooseCustomTheme
+      }))
+    })
+    const appearanceTab = Array.from(host.querySelectorAll<HTMLButtonElement>('.preferences-body nav button'))
+      .find((button) => button.textContent === 'Appearance')
+    if (!appearanceTab) throw new Error('Appearance preferences tab not found')
+    await act(async () => appearanceTab.click())
+
+    const rows = Array.from(host.querySelectorAll<HTMLElement>('.custom-theme-row'))
+    const lightRow = rows.find((row) => row.textContent?.includes('Light custom theme'))
+    const darkRow = rows.find((row) => row.textContent?.includes('Dark custom theme'))
+    if (!lightRow || !darkRow) throw new Error('Custom theme rows not found')
+    const lightButtons = lightRow.querySelectorAll<HTMLButtonElement>('button')
+    const darkButtons = darkRow.querySelectorAll<HTMLButtonElement>('button')
+    await act(async () => lightButtons[0].click())
+    await act(async () => darkButtons[0].click())
+    expect(onChooseCustomTheme).toHaveBeenNthCalledWith(1, 'light')
+    expect(onChooseCustomTheme).toHaveBeenNthCalledWith(2, 'dark')
+
+    await act(async () => lightButtons[1].click())
+    expect(onChange).toHaveBeenCalledWith({ ...configured, customLightThemeName: null, customLightThemeCss: '' })
+    await act(async () => darkButtons[1].click())
+    expect(onChange).toHaveBeenCalledWith({ ...configured, customDarkThemeName: null, customDarkThemeCss: '' })
+
     await act(async () => root.unmount())
     host.remove()
   })

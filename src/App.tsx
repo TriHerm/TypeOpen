@@ -18,6 +18,7 @@ import { normalizeOutlineMaxLevel, normalizeOutlineMode } from './lib/outlinePre
 import { isExportFormat, rememberSuccessfulExport, type ExportFormat } from './lib/exportHistory'
 import { normalizeExportAppearance, resolveExportTheme } from './lib/exportPreferences'
 import { filterFileTreeByGlobs } from './lib/fileTreeFilters'
+import { normalizeCustomThemePreferences, observeSystemTheme, resolveCustomTheme, type CustomThemeAppearance } from './lib/customThemePreferences'
 
 const EMPTY_DOCUMENT = ''
 const PREF_KEY = 'typeopen.preferences.v1'
@@ -29,8 +30,10 @@ function navigationScrollBehavior(): ScrollBehavior {
 
 const DEFAULT_PREFS: TypeOpenPreferences = {
   theme: 'system',
-  customThemeName: null,
-  customThemeCss: '',
+  customLightThemeName: null,
+  customLightThemeCss: '',
+  customDarkThemeName: null,
+  customDarkThemeCss: '',
   exportAppearance: 'editor',
   fontSize: 17,
   contentWidth: 780,
@@ -68,9 +71,19 @@ function loadPreferences(): TypeOpenPreferences {
     const raw = localStorage.getItem(PREF_KEY)
     if (!raw) return DEFAULT_PREFS
     const parsed = JSON.parse(raw)
+    const {
+      customThemeName: _legacyCustomThemeName,
+      customThemeCss: _legacyCustomThemeCss,
+      customLightThemeName: _customLightThemeName,
+      customLightThemeCss: _customLightThemeCss,
+      customDarkThemeName: _customDarkThemeName,
+      customDarkThemeCss: _customDarkThemeCss,
+      ...rest
+    } = parsed && typeof parsed === 'object' ? parsed : {}
     return {
       ...DEFAULT_PREFS,
-      ...parsed,
+      ...rest,
+      ...normalizeCustomThemePreferences(parsed),
       exportAppearance: normalizeExportAppearance(parsed?.exportAppearance),
       defaultCodeLanguage: normalizeCodeBlockLanguage(parsed?.defaultCodeLanguage),
       outlineMode: normalizeOutlineMode(parsed?.outlineMode),
@@ -185,6 +198,7 @@ export default function App() {
   const [preferencesVisible, setPreferencesVisible] = useState(false)
   const [aboutVisible, setAboutVisible] = useState(false)
   const [preferences, setPreferences] = useState<TypeOpenPreferences>(() => loadPreferences())
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
   const [lastCodeLanguage, setLastCodeLanguage] = useState<CodeBlockLanguage | null>(null)
   const [pageSetupVisible, setPageSetupVisible] = useState(false)
   const [pageSetup, setPageSetup] = useState<PageSetupState>(() => loadPageSetup())
@@ -781,10 +795,13 @@ export default function App() {
     }
   }, [createOutputHtml, pageSetup, showToast])
 
-  const chooseCustomTheme = useCallback(async () => {
+  const chooseCustomTheme = useCallback(async (appearance: CustomThemeAppearance) => {
     try {
       const result = await window.typeopen.invoke<{ name: string; css: string } | null>('typeopen:choose-theme-css')
-      if (result) setPreferences((current) => ({ ...current, customThemeName: result.name, customThemeCss: result.css }))
+      if (!result) return
+      setPreferences((current) => appearance === 'dark'
+        ? { ...current, customDarkThemeName: result.name, customDarkThemeCss: result.css }
+        : { ...current, customLightThemeName: result.name, customLightThemeCss: result.css })
     } catch (error) {
       showToast(error instanceof Error ? error.message : String(error))
     }
@@ -984,8 +1001,14 @@ export default function App() {
   }, [pageSetup])
 
   useEffect(() => {
+    const query = window.matchMedia?.('(prefers-color-scheme: dark)')
+    return observeSystemTheme(query, setSystemPrefersDark)
+  }, [])
+
+  useEffect(() => {
+    const activeCustomTheme = resolveCustomTheme(preferences, preferences.theme, systemPrefersDark)
     let style = document.getElementById('typeopen-custom-theme') as HTMLStyleElement | null
-    if (!preferences.customThemeCss) {
+    if (!activeCustomTheme.css) {
       style?.remove()
       return
     }
@@ -994,9 +1017,10 @@ export default function App() {
       style.id = 'typeopen-custom-theme'
       document.head.append(style)
     }
-    style.textContent = preferences.customThemeCss
+    style.dataset.appearance = activeCustomTheme.appearance
+    style.textContent = activeCustomTheme.css
     return () => { style?.remove() }
-  }, [preferences.customThemeCss])
+  }, [preferences.customDarkThemeCss, preferences.customLightThemeCss, preferences.theme, systemPrefersDark])
 
   useEffect(() => {
     if (!recoveryLoaded) return
@@ -1233,7 +1257,7 @@ export default function App() {
         onOpenLabs={() => void window.typeopen.invoke('typeopen:open-external', 'https://github.com/TriHerm')}
         onOpenProject={() => void window.typeopen.invoke('typeopen:open-external', 'https://github.com/TriHerm/TypeOpen')}
       />
-      <PreferencesDialog visible={preferencesVisible} preferences={preferences} onChange={setPreferences} onClose={() => setPreferencesVisible(false)} onChooseCustomTheme={() => void chooseCustomTheme()} />
+      <PreferencesDialog visible={preferencesVisible} preferences={preferences} onChange={setPreferences} onClose={() => setPreferencesVisible(false)} onChooseCustomTheme={(appearance) => void chooseCustomTheme(appearance)} />
       <FileEntryDialog visible={Boolean(fileEntryDialog)} mode={fileEntryDialog?.mode ?? 'create-file'} initialName={fileEntryDialog?.node?.name ?? ''} onClose={() => setFileEntryDialog(null)} onSubmit={(name) => void submitFolderEntryDialog(name)} />
           <PageSetupDialog visible={pageSetupVisible} value={pageSetup} onChange={setPageSetup} onClose={() => setPageSetupVisible(false)} />
       {toast && <div className="toast">{toast}</div>}
