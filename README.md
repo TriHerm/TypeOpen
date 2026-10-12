@@ -24,6 +24,7 @@ This project is an independent clean-room implementation. It does not contain Ty
 - Inline and block TeX math rendered with KaTeX.
 - Mermaid, sequence and legacy flowchart previews inside fenced code blocks.
 - Folder file tree, article list and document outline; the native runtime can create/rename/trash files and folders, refresh the tree, sort by name, modification time or creation time, optionally show hidden files, and reveal selected assets in Finder without promoting images into editable-document authority.
+- Open Folder remembers the last successfully chosen folder as a chooser starting-location hint only; it does not reopen the folder or restore folder authority across launches.
 - Multi-document tabs with per-document dirty state, Save All, safe close prompts and next/previous tab navigation.
 - Native recent documents, reopen-closed history, Open Quickly, Reveal in File Tree and Open File Location.
 - Files, Articles and Open Quickly support optional relative exclusion globs for hiding generated or noisy entries without changing folder authority or Search in Folder.

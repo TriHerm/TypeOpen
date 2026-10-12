@@ -26,6 +26,7 @@ const {
 } = require('./document-types.cjs')
 const { readAndGrantDocument } = require('./document-reader.cjs')
 const { readLocalImageFile } = require('./local-image-io.cjs')
+const { folderDialogOptions } = require('./folder-dialog-hint.cjs')
 
 const execFileAsync = promisify(execFile)
 const DEV_SERVER = process.env.VITE_DEV_SERVER_URL
@@ -333,8 +334,8 @@ async function chooseOpenFile() {
   }
 }
 
-async function chooseOpenFolder() {
-  const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] })
+async function chooseOpenFolder(payload) {
+  const result = await dialog.showOpenDialog(mainWindow, folderDialogOptions(payload))
   if (result.canceled || result.filePaths.length === 0) return null
   const folderPath = result.filePaths[0]
   pathGrants.setFolder(folderPath)
@@ -1262,7 +1263,7 @@ async function createWindow() {
 }
 
 ipcMain.handle('typeopen:open-file', async (event) => { assertTrustedRenderer(event); return chooseOpenFile() })
-ipcMain.handle('typeopen:open-folder', async (event) => { assertTrustedRenderer(event); return chooseOpenFolder() })
+ipcMain.handle('typeopen:open-folder', async (event, payload) => { assertTrustedRenderer(event); return chooseOpenFolder(payload) })
 ipcMain.handle('typeopen:choose-theme-css', async (event) => { assertTrustedRenderer(event); return chooseThemeCss() })
 ipcMain.handle('typeopen:read-file', async (event, filePath) => {
   assertTrustedRenderer(event)

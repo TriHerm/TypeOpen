@@ -27,6 +27,13 @@ struct NativeSecuritySmoke {
         requireThemeRejected(#"@\69mport "https://example.invalid/theme.css";"#, "escaped @import")
         requireThemeRejected(#".x { content: "\41"; }"#, "generic CSS escape")
 
+        require(normalizedFolderDialogHint(["hintPath": "/tmp/typeopen-hint"]) == "/tmp/typeopen-hint", "absolute folder dialog hint rejected")
+        require(normalizedFolderDialogHint(["hintPath": "relative/folder"]) == nil, "relative folder dialog hint accepted")
+        require(normalizedFolderDialogHint(["hintPath": "/tmp/bad\0hint"]) == nil, "NUL folder dialog hint accepted")
+        require(normalizedFolderDialogHint(["hintPath": "/" + String(repeating: "a", count: 4097)]) == nil, "oversized folder dialog hint accepted")
+        require(normalizedFolderDialogHint(["hintPath": "/tmp/typeopen-hint", "extra": true]) == nil, "folder dialog hint with unknown key accepted")
+        require(normalizedFolderDialogHint(["hintPath"]) == nil, "array folder dialog hint accepted")
+
         let fm = FileManager.default
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("typeopen-native-security-\(UUID().uuidString)", isDirectory: true)
