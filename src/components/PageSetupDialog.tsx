@@ -4,6 +4,7 @@ export interface PageSetupState {
   paperSize: 'Letter' | 'A4' | 'Legal' | 'A5' | 'Tabloid'
   orientation: 'portrait' | 'landscape'
   margins: { top: number; right: number; bottom: number; left: number }
+  breakBeforeH1: boolean
 }
 
 interface Props {
@@ -16,7 +17,8 @@ interface Props {
 export const DEFAULT_PAGE_SETUP: PageSetupState = {
   paperSize: 'Letter',
   orientation: 'portrait',
-  margins: { top: 0.5, right: 0.5, bottom: 0.5, left: 0.5 }
+  margins: { top: 0.5, right: 0.5, bottom: 0.5, left: 0.5 },
+  breakBeforeH1: false
 }
 
 export function PageSetupDialog({ visible, value, onChange, onClose }: Props) {
@@ -37,6 +39,8 @@ export function PageSetupDialog({ visible, value, onChange, onClose }: Props) {
             <legend>Margins (inches)</legend>
             {(['top', 'right', 'bottom', 'left'] as const).map((side) => <label key={side}>{side[0].toUpperCase() + side.slice(1)}<input type="number" min="0" max="3" step="0.1" value={value.margins[side]} onChange={(event) => patchMargin(side, event.target.value)} /></label>)}
           </fieldset>
+          <label className="switch-row"><input type="checkbox" checked={value.breakBeforeH1} onChange={(event) => onChange({ ...value, breakBeforeH1: event.target.checked })} /> Start top-level headings on new pages</label>
+          <p className="preference-note">When enabled, every top-level H1 after the first starts on a new printed page. H2–H6 are unchanged.</p>
         </div>
         <footer><button onClick={onClose}>Done</button></footer>
       </section>

@@ -50,7 +50,14 @@ const DEFAULT_PREFS: TypeOpenPreferences = {
 function loadPageSetup(): PageSetupState {
   try {
     const raw = localStorage.getItem(PAGE_SETUP_KEY)
-    return raw ? { ...DEFAULT_PAGE_SETUP, ...JSON.parse(raw), margins: { ...DEFAULT_PAGE_SETUP.margins, ...JSON.parse(raw).margins } } : DEFAULT_PAGE_SETUP
+    if (!raw) return DEFAULT_PAGE_SETUP
+    const parsed = JSON.parse(raw)
+    return {
+      ...DEFAULT_PAGE_SETUP,
+      ...parsed,
+      breakBeforeH1: parsed?.breakBeforeH1 === true,
+      margins: { ...DEFAULT_PAGE_SETUP.margins, ...parsed?.margins }
+    }
   } catch {
     return DEFAULT_PAGE_SETUP
   }
@@ -716,9 +723,10 @@ export default function App() {
       title: filePath ? extensionless(filePath) : documentTitle(latest),
       includeOutline: false,
       theme: exportTheme,
-      maxWidth: preferences.contentWidth
+      maxWidth: preferences.contentWidth,
+      breakBeforeH1: pageSetup.breakBeforeH1
     })
-  }, [filePath, markdown, preferences.contentWidth, preferences.exportAppearance, preferences.theme])
+  }, [filePath, markdown, pageSetup.breakBeforeH1, preferences.contentWidth, preferences.exportAppearance, preferences.theme])
 
   const exportDocument = useCallback(async (format: ExportFormat) => {
     const documentId = activeDocumentIdRef.current

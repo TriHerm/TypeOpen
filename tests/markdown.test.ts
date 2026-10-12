@@ -57,6 +57,15 @@ describe('markdown document helpers', () => {
   it('leaves page geometry to Electron Page Setup instead of emitting a conflicting @page rule', async () => {
     const html = await createExportHtml('# Print')
     expect(html).not.toContain('@page')
+    expect(html).not.toContain('break-before:page')
+  })
+
+  it('can start top-level H1 headings after the first on new printed pages only', async () => {
+    const html = await createExportHtml('# First\n\n## Child\n\n# Second\n', { breakBeforeH1: true })
+    expect(html).toContain('@media print{')
+    expect(html).toContain('main > h1:not(:first-of-type){break-before:page;page-break-before:always}')
+    expect(html).not.toContain('h2:not(:first-of-type)')
+    expect(html).not.toContain('@page')
   })
 
   it('exports GitHub alerts as styled callouts without exposing the marker', async () => {
