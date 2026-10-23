@@ -1,18 +1,52 @@
 <p align="center">
-  <img src="build/icon.png" width="128" height="128" alt="TypeOpen logo" />
+  <img src="build/icon.png" width="112" height="112" alt="TypeOpen app icon" />
 </p>
 
 # TypeOpen
 
-TypeOpen is a TriHerm Labs open-source desktop Markdown editor for macOS focused on a clean live editing workflow: write Markdown while seeing a rendered document, switch to source when needed, navigate a folder/outline, and export to common document formats.
+**A lightweight, open-source Markdown editor for macOS.**
 
-[![Download latest DMG](https://img.shields.io/badge/Download-Latest%20DMG-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/TriHerm/TypeOpen/releases/latest)
+Write in a live, formatted Markdown editor, switch to the source whenever you need full control, and navigate your documents without leaving your writing flow. TypeOpen is an independent, Typora-style Markdown editor for Apple Silicon Macs, built with Swift/AppKit, WKWebView and a React/Lexical editing surface.
 
-The default macOS build uses a small Swift/AppKit shell with the system WKWebView rather than bundling Chromium. This keeps the application in the same lightweight architectural class as native WebKit editors while preserving TypeOpen's React/Lexical editor surface.
+[![Download TypeOpen for macOS](https://img.shields.io/badge/Download-TypeOpen%20for%20macOS-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/TriHerm/TypeOpen/releases/latest)
+[![Homebrew](https://img.shields.io/badge/Homebrew-Install-FBB040?style=for-the-badge&logo=homebrew&logoColor=000000)](#install-with-homebrew)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 
-This project is an independent clean-room implementation. It does not contain Typora source code, decompiled function bodies, icons, themes, license/update mechanisms, or proprietary assets. REA was used locally to inventory user-visible behavior from a legally supplied application bundle; the reference application and raw REA evidence are explicitly excluded from Git and release artifacts.
+## The writing workflow
 
-## Current capabilities
+- **Live Markdown editing:** work directly with formatted headings, lists, tables, links, images and code; your document is saved as Markdown.
+- **Source Code Mode:** move between rich editing and raw Markdown when syntax matters.
+- **Document navigation:** use the folder tree, document tabs and outline to find the next section quickly.
+- **Native macOS distribution:** a small Swift/AppKit shell uses the system WKWebView rather than bundling Chromium. The current release is Apple Silicon only.
+
+TypeOpen is developed independently and is **not affiliated with Typora**. It does not attempt to claim feature-for-feature parity; see the [feature and compatibility matrix](docs/PARITY_MATRIX.md) for supported behavior and known gaps.
+
+## Install with Homebrew
+
+Homebrew is the recommended installation path for TypeOpen on Apple Silicon Macs:
+
+```bash
+brew install --cask triherm/tap/typeopen
+```
+
+The Cask is maintained in the public [`TriHerm/homebrew-tap`](https://github.com/TriHerm/homebrew-tap) repository and tracks the matching immutable GitHub release artifact.
+
+TypeOpen is currently ad-hoc signed and not notarized. Homebrew keeps macOS quarantine enabled, so Gatekeeper may block the first launch. If you trust the release, open TypeOpen once and approve it through **System Settings → Privacy & Security → Open Anyway**.
+
+You can also download the current Apple Silicon DMG directly from [GitHub Releases](https://github.com/TriHerm/TypeOpen/releases/latest).
+
+## Requirements
+
+- macOS 13 or newer.
+- Apple Silicon (`arm64`) for the current public release.
+- Optional: Pandoc 2+ for advanced import/export formats.
+
+For development from source, use Node.js 22.12+, npm 11+, and Xcode Command Line Tools with `swiftc`.
+
+## Full feature list
+
+<details>
+<summary>Expand supported editor, navigation, formatting, and export features</summary>
 
 - Live WYSIWYG Markdown editing with Markdown as the persisted format.
 - Source Code Mode backed by CodeMirror.
@@ -49,29 +83,13 @@ This project is an independent clean-room implementation. It does not contain Ty
 - DOCX, ODT, RTF, EPUB, LaTeX and MediaWiki export when Pandoc is installed.
 - Import of supported Pandoc document formats into Markdown when Pandoc is installed.
 
+</details>
+
 See [`docs/PARITY_MATRIX.md`](docs/PARITY_MATRIX.md) for the exact feature/evidence status and known gaps.
 
-## Install with Homebrew
+## Feedback and contributions
 
-Homebrew is the recommended installation path for TypeOpen on Apple Silicon Macs:
-
-```bash
-brew install --cask triherm/tap/typeopen
-```
-
-The Cask is maintained in the public [`TriHerm/homebrew-tap`](https://github.com/TriHerm/homebrew-tap) repository and tracks the matching immutable GitHub release artifact.
-
-TypeOpen is currently ad-hoc signed and not notarized. Homebrew keeps macOS quarantine enabled, so Gatekeeper may block the first launch. If you trust the release, open TypeOpen once and approve it through **System Settings → Privacy & Security → Open Anyway**.
-
-You can also download the current Apple Silicon DMG directly from [GitHub Releases](https://github.com/TriHerm/TypeOpen/releases/latest).
-
-## Requirements
-
-- macOS 13 or newer.
-- Apple Silicon (`arm64`) for the current public release.
-- Optional: Pandoc 2+ for advanced import/export formats.
-
-For development from source, use Node.js 22.12+, npm 11+, and Xcode Command Line Tools with `swiftc`.
+Found an issue or want to suggest a feature? Use [GitHub Issues](https://github.com/TriHerm/TypeOpen/issues). Contributions are welcome; read [CONTRIBUTING.md](CONTRIBUTING.md) and the [architecture notes](docs/ARCHITECTURE.md) before making changes.
 
 ## Development
 
