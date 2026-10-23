@@ -12,20 +12,32 @@ Write in a live, formatted Markdown editor, switch to the source whenever you ne
 [![Homebrew](https://img.shields.io/badge/Homebrew-Install-FBB040?style=for-the-badge&logo=homebrew&logoColor=000000)](#install-with-homebrew)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 
+## See TypeOpen in action
+
+<p align="center">
+  <a href="https://github.com/TriHerm/TypeOpen/releases/download/v0.1.7/TypeOpen-Demo-Landscape.mp4">
+    <img src="docs/assets/typeopen-demo-cover.jpg" alt="TypeOpen Markdown editor demonstration: formatted Markdown document with headings and lists" width="960" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/TriHerm/TypeOpen/releases/download/v0.1.7/TypeOpen-Demo-Landscape.mp4"><strong>Watch the 30-second demo (landscape)</strong></a>
+  · <a href="https://github.com/TriHerm/TypeOpen/releases/download/v0.1.7/TypeOpen-Demo-Portrait.mp4">Vertical demo</a>
+</p>
+
 ## The writing workflow
 
-- **Live Markdown editing:** work directly with formatted headings, lists, tables, links, images and code; your document is saved as Markdown.
-- **Source Code Mode:** move between rich editing and raw Markdown when syntax matters.
-- **Document navigation:** use the folder tree, document tabs and outline to find the next section quickly.
-- **Native macOS distribution:** a small Swift/AppKit shell uses the system WKWebView rather than bundling Chromium. The current release is Apple Silicon only.
+<table>
+  <tr>
+    <td width="33%" align="center"><img src="docs/assets/typeopen-live-markdown.jpg" alt="Live Markdown editing in TypeOpen" /><strong>Live Markdown</strong></td>
+    <td width="33%" align="center"><img src="docs/assets/typeopen-source-mode.jpg" alt="Markdown source editing in TypeOpen" /><strong>Source Mode</strong></td>
+    <td width="33%" align="center"><img src="docs/assets/typeopen-outline.jpg" alt="Document outline navigation in TypeOpen" /><strong>Document Outline</strong></td>
+  </tr>
+</table>
 
-TypeOpen is developed independently and is **not affiliated with Typora**. It does not attempt to claim feature-for-feature parity; see the [feature and compatibility matrix](docs/PARITY_MATRIX.md) for supported behavior and known gaps.
+TypeOpen keeps your documents in Markdown: write with formatted headings, lists, tables, links, images and code; switch to raw source when needed; or jump between sections with a navigable outline. The current native macOS distribution uses Swift/AppKit with WKWebView on Apple Silicon, not bundled Chromium.
 
-## See the writing workflow
-
-![Illustrated overview of TypeOpen's live Markdown editor, source mode and document outline](docs/assets/typeopen-workflow.svg)
-
-*An illustrated tour of three available workflows. Real application screenshots and the 30-second demo will be added separately.*
+The images above are frames from the TypeOpen product demo. TypeOpen is developed independently and is **not affiliated with Typora**. For supported features and known gaps, see the [feature and compatibility matrix](docs/PARITY_MATRIX.md).
 
 ## Install with Homebrew
 
