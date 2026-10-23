@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc">
+<title id="title">TypeOpen — three ways to work with Markdown</title>
+<desc id="desc">Illustrated overview of rich Markdown editing, source mode, and document outline navigation.</desc>
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#141717"/><stop offset="1" stop-color="#0c0d0d"/></linearGradient>
+  <linearGradient id="card" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d2020"/><stop offset="1" stop-color="#141616"/></linearGradient>
+</defs>
+<rect width="1200" height="560" rx="24" fill="url(#bg)"/>
+<g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif">
+ <text x="48" y="51" font-size="15" font-weight="700" fill="#ee916f" letter-spacing="3">TYPEOPEN</text>
+ <text x="48" y="93" font-size="33" font-weight="650" fill="#f5f5f2">From thought to Markdown, without friction.</text>
+ <text x="48" y="124" font-size="16" fill="#a8ada9">Write visually. Edit the source. Navigate the whole document.</text>
+ <g transform="translate(42 159)">
+  <rect width="358" height="329" rx="16" fill="url(#card)" stroke="#414544"/>
+  <rect width="358" height="43" rx="16" fill="#272a2a"/><rect y="30" width="358" height="13" fill="#272a2a"/>
+  <circle cx="21" cy="21" r="5" fill="#f28e75"/><circle cx="39" cy="21" r="5" fill="#e3b86b"/><circle cx="57" cy="21" r="5" fill="#86aa91"/>
+  <text x="82" y="27" font-size="13" fill="#d5d7d4">Live editor</text>
+  <text x="24" y="89" font-size="26" fill="#f0f0ec" font-weight="700">Make room for the idea</text>
+  <text x="24" y="128" font-size="15" fill="#c9cbc6">Write freely. Give your thoughts</text>
+  <text x="24" y="150" font-size="15" fill="#c9cbc6">structure. Keep the words moving.</text>
+  <circle cx="29" cy="185" r="3" fill="#ef8d6c"/><text x="43" y="191" fill="#e6e6e1" font-size="15">Capture the first thought</text>
+  <circle cx="29" cy="223" r="3" fill="#ef8d6c"/><text x="43" y="229" fill="#e6e6e1" font-size="15">Find the right words</text>
+  <circle cx="29" cy="261" r="3" fill="#ef8d6c"/><text x="43" y="267" fill="#e6e6e1" font-size="15">Share something worth reading</text>
+  <text x="24" y="308" fill="#ee916f" font-size="12" letter-spacing="1.6">01  WRITE</text>
+ </g>
+ <g transform="translate(421 159)">
+  <rect width="358" height="329" rx="16" fill="url(#card)" stroke="#414544"/>
+  <rect width="358" height="43" rx="16" fill="#272a2a"/><rect y="30" width="358" height="13" fill="#272a2a"/>
+  <circle cx="21" cy="21" r="5" fill="#f28e75"/><circle cx="39" cy="21" r="5" fill="#e3b86b"/><circle cx="57" cy="21" r="5" fill="#86aa91"/>
+  <text x="82" y="27" font-size="13" fill="#d5d7d4">Source mode</text>
+  <g font-family="SFMono-Regular,Consolas,Monaco,monospace" font-size="14">
+   <text x="20" y="87" fill="#707a79">1</text><text x="47" y="87" fill="#9bb5e3"># Make room for the idea</text>
+   <text x="20" y="124" fill="#707a79">2</text><text x="47" y="124" fill="#e4e6e3">Write freely. Give your</text>
+   <text x="20" y="149" fill="#707a79">3</text><text x="47" y="149" fill="#e4e6e3">thoughts **structure**.</text>
+   <text x="20" y="187" fill="#707a79">4</text><text x="47" y="187" fill="#e4e6e3">- Capture the first thought</text>
+   <text x="20" y="224" fill="#707a79">5</text><text x="47" y="224" fill="#e4e6e3">- Find the right words</text>
+   <text x="20" y="261" fill="#707a79">6</text><text x="47" y="261" fill="#e4e6e3">- Share something</text>
+  </g>
+  <text x="24" y="308" fill="#ee916f" font-size="12" letter-spacing="1.6">02  REFINE</text>
+ </g>
+ <g transform="translate(800 159)">
+  <rect width="358" height="329" rx="16" fill="url(#card)" stroke="#414544"/>
+  <rect width="358" height="43" rx="16" fill="#272a2a"/><rect y="30" width="358" height="13" fill="#272a2a"/>
+  <circle cx="21" cy="21" r="5" fill="#f28e75"/><circle cx="39" cy="21" r="5" fill="#e3b86b"/><circle cx="57" cy="21" r="5" fill="#86aa91"/>
+  <text x="82" y="27" font-size="13" fill="#d5d7d4">Document outline</text>
+  <text x="23" y="83" fill="#f2f2ef" font-size="17" font-weight="650">A little space to think</text>
+  <rect x="24" y="101" width="2" height="140" fill="#434847"/>
+  <text x="43" y="123" fill="#e6e9e5" font-size="15">Make room for the idea</text>
+  <text x="43" y="165" fill="#d3d8d2" font-size="15">Ready when you are</text>
+  <text x="43" y="207" fill="#d3d8d2" font-size="15">Where to next?</text>
+  <path d="M326 113 l7 7 -7 7" fill="none" stroke="#ee916f" stroke-width="2"/>
+  <text x="24" y="308" fill="#ee916f" font-size="12" letter-spacing="1.6">03  NAVIGATE</text>
+ </g>
+ <text x="46" y="530" fill="#939b96" font-size="12">Workflow illustration — not a screenshot of the application</text>
+ <text x="1156" y="530" text-anchor="end" fill="#939b96" font-size="12">Open source · macOS · Markdown</text>
+</g>
+</svg>
