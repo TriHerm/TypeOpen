@@ -21,6 +21,12 @@ Write in a live, formatted Markdown editor, switch to the source whenever you ne
 
 TypeOpen is developed independently and is **not affiliated with Typora**. It does not attempt to claim feature-for-feature parity; see the [feature and compatibility matrix](docs/PARITY_MATRIX.md) for supported behavior and known gaps.
 
+## See the writing workflow
+
+![Illustrated overview of TypeOpen's live Markdown editor, source mode and document outline](docs/assets/typeopen-workflow.svg)
+
+*An illustrated tour of three available workflows. Real application screenshots and the 30-second demo will be added separately.*
+
 ## Install with Homebrew
 
 Homebrew is the recommended installation path for TypeOpen on Apple Silicon Macs:
